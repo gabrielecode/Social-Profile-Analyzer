@@ -35,7 +35,9 @@ import {
   TrendingUp,
   Layers,
   ArrowRight,
+  Download,
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 interface HealthData {
   status: string;
@@ -134,10 +136,23 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileData: profileResult }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Impossibile generare i consigli IA.');
+
+      const contentType = res.headers.get('content-type') || '';
+      let data;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        throw new Error(
+          res.status === 429
+            ? 'Troppe richieste inviate. Riprova tra un minuto.'
+            : `Il server ha restituito una risposta non in formato JSON (HTTP ${res.status}). Riprova tra poco.`
+        );
       }
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `Errore HTTP ${res.status} durante la generazione dei consigli IA.`);
+      }
+
       if (data.advice) {
         setProfileResult({
           ...profileResult,
@@ -150,6 +165,165 @@ export default function App() {
     } finally {
       setIsGeneratingAiAdvice(false);
     }
+  };
+
+  // Esportazione Report PDF con jsPDF
+  const handleExportPdf = () => {
+    if (!profileResult) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 15;
+
+    // Header banner
+    doc.setFillColor(79, 70, 229); // Indigo 600
+    doc.rect(0, 0, pageWidth, 24, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SOCIAL PROFILE ANALYZER', 14, 15);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Report Analisi Profilo & Consigli Mirati', pageWidth - 14, 15, { align: 'right' });
+
+    y = 35;
+
+    // Header profilo
+    doc.setTextColor(30, 41, 59); // Slate 800
+    doc.setFontSize(17);
+    doc.setFont('helvetica', 'bold');
+    const titleText = profileResult.displayName
+      ? `${profileResult.displayName} (@${profileResult.handle})`
+      : `@${profileResult.handle}`;
+    doc.text(titleText, 14, y);
+
+    y += 7;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(
+      `Piattaforma: ${profileResult.platform.toUpperCase()}  |  Data: ${new Date().toLocaleDateString('it-IT')}  |  URL: ${profileResult.url}`,
+      14,
+      y
+    );
+
+    y += 10;
+
+    // Box Punteggio e Metriche
+    doc.setFillColor(241, 245, 249); // Slate 100
+    doc.rect(14, y, pageWidth - 28, 26, 'F');
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(14, y, pageWidth - 28, 26, 'S');
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('METRICHE CHIAVE E SALUTE PROFILO', 18, y + 8);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const followersTxt = `Follower: ${formatNumber(profileResult.followers)}`;
+    const followingTxt = `Seguiti: ${formatNumber(profileResult.following)}`;
+    const postsTxt = `Post/Video: ${formatNumber(profileResult.postsCount)}`;
+    const scoreTxt =
+      profileResult.advice?.overallScore !== undefined
+        ? `Punteggio Salute: ${profileResult.advice.overallScore}/100`
+        : 'Completezza: ' + profileResult.completeness;
+
+    doc.text(`${followersTxt}   |   ${followingTxt}   |   ${postsTxt}`, 18, y + 16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(79, 70, 229);
+    doc.text(scoreTxt, 18, y + 22);
+
+    y += 34;
+
+    // Bio
+    if (profileResult.bio) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('BIO DEL PROFILO', 14, y);
+      y += 5;
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(51, 65, 85);
+
+      const splitBio = doc.splitTextToSize(profileResult.bio, pageWidth - 28);
+      doc.text(splitBio, 14, y);
+      y += splitBio.length * 4.5 + 6;
+    }
+
+    // Sezione Consigli Mirati
+    if (profileResult.advice && profileResult.advice.tips.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(79, 70, 229);
+      doc.text('CONSIGLI MIRATI PER MIGLIORARE IL PROFILO', 14, y);
+      y += 6;
+
+      if (profileResult.advice.summary) {
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'oblique');
+        doc.setTextColor(71, 85, 105);
+        const splitSummary = doc.splitTextToSize(profileResult.advice.summary, pageWidth - 28);
+        doc.text(splitSummary, 14, y);
+        y += splitSummary.length * 4.5 + 6;
+      }
+
+      // Loop consigli
+      profileResult.advice.tips.forEach((tip, idx) => {
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+        }
+
+        const priorityLabel =
+          tip.priority === 'high'
+            ? '[PRIORITA ALTA]'
+            : tip.priority === 'medium'
+            ? '[PRIORITA MEDIA]'
+            : '[SUGGERIMENTO]';
+
+        doc.setFontSize(9.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`${idx + 1}. ${tip.title} ${priorityLabel}`, 14, y);
+        y += 5;
+
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        const splitDesc = doc.splitTextToSize(tip.description, pageWidth - 28);
+        doc.text(splitDesc, 18, y);
+        y += splitDesc.length * 4 + 2;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(67, 56, 202);
+        const actionTxt = `Azione Pratica: ${tip.actionableStep}`;
+        const splitAction = doc.splitTextToSize(actionTxt, pageWidth - 28);
+        doc.text(splitAction, 18, y);
+        y += splitAction.length * 4 + 6;
+      });
+    }
+
+    // Footer a pie pagina
+    const pageCount = doc.internal.pages.length - 1;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(148, 163, 184);
+      doc.text(
+        `Social Profile Analyzer - Report per @${profileResult.handle} - Pagina ${i} di ${pageCount}`,
+        14,
+        doc.internal.pageSize.getHeight() - 10
+      );
+    }
+
+    doc.save(`Report_Social_${profileResult.handle}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   // Stato salute backend
@@ -238,7 +412,17 @@ export default function App() {
         }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        throw new Error(
+          res.status === 429
+            ? 'Troppe richieste inviate. Riprova tra un minuto.'
+            : `Il server ha restituito una risposta non in formato JSON (HTTP ${res.status}).`
+        );
+      }
 
       if (!res.ok || !data.success) {
         throw new Error(data.error || `Errore HTTP ${res.status} durante l'analisi.`);
@@ -586,6 +770,15 @@ export default function App() {
                   )}
                   <button
                     type="button"
+                    onClick={handleExportPdf}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition"
+                    title="Scarica il report in PDF"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Esporta Report PDF</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setShowRawJson(!showRawJson)}
                     className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 text-xs font-medium border border-slate-700/60 transition"
                   >
@@ -661,12 +854,21 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="self-stretch sm:self-auto flex items-center gap-2">
+                  <div className="self-stretch sm:self-auto flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleExportPdf}
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md transition"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Esporta Report PDF</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleAnalyzeProfile(profileResult.url)}
                       disabled={isAnalyzing}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition"
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition"
                       title="Ricarica profilo"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
