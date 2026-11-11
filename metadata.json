@@ -1,0 +1,8 @@
+{
+  "name": "Social Profile Analyzer",
+  "description": "Analizzatore di profili social con backend Express e integrazione OpenRouter.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
