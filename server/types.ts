@@ -15,7 +15,7 @@ export interface RecentPost {
 
 export type CompletenessLevel = 'full' | 'partial' | 'none';
 
-export type AdviceCategory = 'bio' | 'content' | 'engagement' | 'trust' | 'growth';
+export type AdviceCategory = 'bio' | 'content' | 'community' | 'trust' | 'growth' | 'engagement';
 export type AdvicePriority = 'high' | 'medium' | 'low';
 
 export interface AdviceItem {

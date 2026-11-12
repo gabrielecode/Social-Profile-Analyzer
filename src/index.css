@@ -1,1 +1,52 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --apple-bg: #f5f5f7;
+    --apple-card: #ffffff;
+    --apple-border: #e5e5ea;
+    --apple-text: #1d1d1f;
+    --apple-secondary: #6e6e73;
+    --apple-accent: #0071e3;
+    --apple-accent-hover: #0077ed;
+    --apple-green: #34c759;
+    --apple-amber: #ff9f0a;
+    --apple-red: #ff3b30;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background-color: #f5f5f7;
+    color: #1d1d1f;
+  }
+
+  body {
+    background-color: #f5f5f7;
+    color: #1d1d1f;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/* Tabular figures for alignment */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Motion preference support */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

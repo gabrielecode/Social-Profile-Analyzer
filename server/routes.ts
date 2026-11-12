@@ -239,6 +239,7 @@ router.post('/generate-ai-advice', testAiLimiter, async (req: Request, res: Resp
     }
 
     const systemPrompt = `Sei un Social Media Strategist senior specializzato nell'ottimizzazione di profili aziendali e personal brand su Instagram, TikTok e Facebook.
+Basa l'analisi esclusivamente sui dati forniti. Non inventare e non citare metriche che non sono presenti (engagement rate, frequenza di pubblicazione, hashtag, visualizzazioni, ecc.). Se un consiglio è generico e non deriva dai dati, formulalo come buona pratica generale.
 Analizza i dati del profilo forniti dall'utente e rispondi ESCLUSIVAMENTE con un oggetto JSON valido con la seguente struttura:
 {
   "overallScore": number (tra 1 e 100),
@@ -246,7 +247,7 @@ Analizza i dati del profilo forniti dall'utente e rispondi ESCLUSIVAMENTE con un
   "tips": [
     {
       "id": "stringa-id-univoca",
-      "category": "bio" | "content" | "engagement" | "trust" | "growth",
+      "category": "bio" | "content" | "community" | "trust" | "growth",
       "title": "Titolo del consiglio diretto e professionale",
       "description": "Spiegazione del perché questo elemento va migliorato basandoti sui dati reali forniti",
       "priority": "high" | "medium" | "low",
@@ -269,7 +270,6 @@ Fornisci da 4 a 6 consigli estremamente specifici e azionabili in lingua italian
       verified: profileData.verified,
       completeness: profileData.completeness,
       missingFields: profileData.missingFields,
-      recentPostsCount: profileData.recentPosts?.length || 0,
     }, null, 2);
 
     const result = await chatCompletion(
@@ -287,6 +287,12 @@ Fornisci da 4 a 6 consigli estremamente specifici e azionabili in lingua italian
     try {
       const cleanJson = result.content.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
       parsedAdvice = JSON.parse(cleanJson);
+      if (Array.isArray(parsedAdvice?.tips)) {
+        parsedAdvice.tips = parsedAdvice.tips.map((tip: any) => ({
+          ...tip,
+          category: tip.category === 'engagement' ? 'community' : tip.category,
+        }));
+      }
       parsedAdvice.aiGenerated = true;
     } catch {
       // Fallback se l'IA restituisce testo non JSON

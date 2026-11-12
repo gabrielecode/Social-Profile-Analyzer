@@ -4,38 +4,32 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
+  Search,
   Sparkles,
   Link2,
   CheckCircle2,
   AlertTriangle,
-  Send,
+  XCircle,
   Loader2,
   Copy,
   Check,
-  Server,
-  Zap,
-  Info,
-  Clock,
-  Cpu,
   RefreshCw,
   ExternalLink,
   Users,
   UserCheck,
   Video,
-  ShieldCheck,
-  ShieldAlert,
-  Code2,
-  X,
-  FileText,
-  BadgeCheck,
   Heart,
-  Target,
-  Lightbulb,
-  TrendingUp,
-  Layers,
-  ArrowRight,
+  ChevronDown,
+  ChevronUp,
   Download,
+  X,
+  Code2,
+  Cpu,
+  Server,
+  Zap,
+  ArrowUpRight,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
@@ -71,7 +65,7 @@ export interface RecentPost {
   url?: string;
 }
 
-export type AdviceCategory = 'bio' | 'content' | 'engagement' | 'trust' | 'growth';
+export type AdviceCategory = 'bio' | 'content' | 'community' | 'trust' | 'growth' | 'engagement';
 export type AdvicePriority = 'high' | 'medium' | 'low';
 
 export interface AdviceItem {
@@ -111,7 +105,7 @@ export interface ProfileData {
 }
 
 export default function App() {
-  // Stato profilo da link
+  // Stato profilo da analizzare
   const [profileUrl, setProfileUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [profileResult, setProfileResult] = useState<ProfileData | null>(null);
@@ -124,207 +118,8 @@ export default function App() {
   const [isGeneratingAiAdvice, setIsGeneratingAiAdvice] = useState(false);
   const [aiAdviceError, setAiAdviceError] = useState<string | null>(null);
 
-  // Generazione consigli IA avanzati
-  const handleGenerateAiAdvice = async () => {
-    if (!profileResult || isGeneratingAiAdvice) return;
-    setIsGeneratingAiAdvice(true);
-    setAiAdviceError(null);
-
-    try {
-      const res = await fetch('/api/generate-ai-advice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileData: profileResult }),
-      });
-
-      const contentType = res.headers.get('content-type') || '';
-      let data;
-      if (contentType.includes('application/json')) {
-        data = await res.json();
-      } else {
-        throw new Error(
-          res.status === 429
-            ? 'Troppe richieste inviate. Riprova tra un minuto.'
-            : `Il server ha restituito una risposta non in formato JSON (HTTP ${res.status}). Riprova tra poco.`
-        );
-      }
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || `Errore HTTP ${res.status} durante la generazione dei consigli IA.`);
-      }
-
-      if (data.advice) {
-        setProfileResult({
-          ...profileResult,
-          advice: data.advice,
-        });
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Errore durante la generazione dei consigli IA.';
-      setAiAdviceError(msg);
-    } finally {
-      setIsGeneratingAiAdvice(false);
-    }
-  };
-
-  // Esportazione Report PDF con jsPDF
-  const handleExportPdf = () => {
-    if (!profileResult) return;
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let y = 15;
-
-    // Header banner
-    doc.setFillColor(79, 70, 229); // Indigo 600
-    doc.rect(0, 0, pageWidth, 24, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(15);
-    doc.setFont('helvetica', 'bold');
-    doc.text('SOCIAL PROFILE ANALYZER', 14, 15);
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Report Analisi Profilo & Consigli Mirati', pageWidth - 14, 15, { align: 'right' });
-
-    y = 35;
-
-    // Header profilo
-    doc.setTextColor(30, 41, 59); // Slate 800
-    doc.setFontSize(17);
-    doc.setFont('helvetica', 'bold');
-    const titleText = profileResult.displayName
-      ? `${profileResult.displayName} (@${profileResult.handle})`
-      : `@${profileResult.handle}`;
-    doc.text(titleText, 14, y);
-
-    y += 7;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 116, 139);
-    doc.text(
-      `Piattaforma: ${profileResult.platform.toUpperCase()}  |  Data: ${new Date().toLocaleDateString('it-IT')}  |  URL: ${profileResult.url}`,
-      14,
-      y
-    );
-
-    y += 10;
-
-    // Box Punteggio e Metriche
-    doc.setFillColor(241, 245, 249); // Slate 100
-    doc.rect(14, y, pageWidth - 28, 26, 'F');
-    doc.setDrawColor(203, 213, 225);
-    doc.rect(14, y, pageWidth - 28, 26, 'S');
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 41, 59);
-    doc.text('METRICHE CHIAVE E SALUTE PROFILO', 18, y + 8);
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    const followersTxt = `Follower: ${formatNumber(profileResult.followers)}`;
-    const followingTxt = `Seguiti: ${formatNumber(profileResult.following)}`;
-    const postsTxt = `Post/Video: ${formatNumber(profileResult.postsCount)}`;
-    const scoreTxt =
-      profileResult.advice?.overallScore !== undefined
-        ? `Punteggio Salute: ${profileResult.advice.overallScore}/100`
-        : 'Completezza: ' + profileResult.completeness;
-
-    doc.text(`${followersTxt}   |   ${followingTxt}   |   ${postsTxt}`, 18, y + 16);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(79, 70, 229);
-    doc.text(scoreTxt, 18, y + 22);
-
-    y += 34;
-
-    // Bio
-    if (profileResult.bio) {
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(30, 41, 59);
-      doc.text('BIO DEL PROFILO', 14, y);
-      y += 5;
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(51, 65, 85);
-
-      const splitBio = doc.splitTextToSize(profileResult.bio, pageWidth - 28);
-      doc.text(splitBio, 14, y);
-      y += splitBio.length * 4.5 + 6;
-    }
-
-    // Sezione Consigli Mirati
-    if (profileResult.advice && profileResult.advice.tips.length > 0) {
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(79, 70, 229);
-      doc.text('CONSIGLI MIRATI PER MIGLIORARE IL PROFILO', 14, y);
-      y += 6;
-
-      if (profileResult.advice.summary) {
-        doc.setFontSize(8.5);
-        doc.setFont('helvetica', 'oblique');
-        doc.setTextColor(71, 85, 105);
-        const splitSummary = doc.splitTextToSize(profileResult.advice.summary, pageWidth - 28);
-        doc.text(splitSummary, 14, y);
-        y += splitSummary.length * 4.5 + 6;
-      }
-
-      // Loop consigli
-      profileResult.advice.tips.forEach((tip, idx) => {
-        if (y > 250) {
-          doc.addPage();
-          y = 20;
-        }
-
-        const priorityLabel =
-          tip.priority === 'high'
-            ? '[PRIORITA ALTA]'
-            : tip.priority === 'medium'
-            ? '[PRIORITA MEDIA]'
-            : '[SUGGERIMENTO]';
-
-        doc.setFontSize(9.5);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 41, 59);
-        doc.text(`${idx + 1}. ${tip.title} ${priorityLabel}`, 14, y);
-        y += 5;
-
-        doc.setFontSize(8.5);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(71, 85, 105);
-        const splitDesc = doc.splitTextToSize(tip.description, pageWidth - 28);
-        doc.text(splitDesc, 18, y);
-        y += splitDesc.length * 4 + 2;
-
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(67, 56, 202);
-        const actionTxt = `Azione Pratica: ${tip.actionableStep}`;
-        const splitAction = doc.splitTextToSize(actionTxt, pageWidth - 28);
-        doc.text(splitAction, 18, y);
-        y += splitAction.length * 4 + 6;
-      });
-    }
-
-    // Footer a pie pagina
-    const pageCount = doc.internal.pages.length - 1;
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(148, 163, 184);
-      doc.text(
-        `Social Profile Analyzer - Report per @${profileResult.handle} - Pagina ${i} di ${pageCount}`,
-        14,
-        doc.internal.pageSize.getHeight() - 10
-      );
-    }
-
-    doc.save(`Report_Social_${profileResult.handle}_${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
+  // Pannello tecnico / Strumenti sviluppatore (chiuso di default)
+  const [showDevTools, setShowDevTools] = useState(false);
 
   // Stato salute backend
   const [health, setHealth] = useState<HealthData | null>(null);
@@ -339,7 +134,7 @@ export default function App() {
   const [aiResult, setAiResult] = useState<TestAiResponse | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Esempi rapidi di profili pubblici supportati
+  // Profili di esempio per test immediato
   const sampleProfiles = [
     {
       platform: 'instagram' as const,
@@ -353,20 +148,19 @@ export default function App() {
     },
     {
       platform: 'facebook' as const,
-      label: 'Facebook (Mark Zuckerberg)',
+      label: 'Facebook (@zuck)',
       url: 'https://www.facebook.com/zuck',
     },
   ];
 
-  // Esempi di prompt per OpenRouter
+  // Prompt per test AI
   const samplePrompts = [
-    'Quali sono i 3 pilastri fondamentali di un profilo social vincente?',
-    'Come strutturare una Bio Instagram ad alto tasso di conversione?',
-    'Consigli per rendere accattivante il sommario di LinkedIn',
+    'Quali sono i 3 pilastri di un profilo social vincente?',
+    'Come creare una Bio Instagram ad alto tasso di conversione?',
     '3 errori gravi da evitare nella foto profilo aziendale',
   ];
 
-  // Controllo stato del backend
+  // Controllo stato backend
   const checkHealth = async () => {
     setIsHealthLoading(true);
     setHealthError(null);
@@ -434,10 +228,53 @@ export default function App() {
       }
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : "Errore durante la lettura del profilo.";
+        err instanceof Error ? err.message : 'Errore durante la lettura del profilo.';
       setAnalysisError(msg);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // Generazione consigli IA avanzati (POST /api/generate-ai-advice)
+  const handleGenerateAiAdvice = async () => {
+    if (!profileResult || isGeneratingAiAdvice) return;
+    setIsGeneratingAiAdvice(true);
+    setAiAdviceError(null);
+
+    try {
+      const res = await fetch('/api/generate-ai-advice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileData: profileResult }),
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      let data;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        throw new Error(
+          res.status === 429
+            ? 'Troppe richieste inviate. Riprova tra un minuto.'
+            : `Il server ha restituito una risposta non in formato JSON (HTTP ${res.status}).`
+        );
+      }
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `Errore HTTP ${res.status} durante la generazione dei consigli IA.`);
+      }
+
+      if (data.advice) {
+        setProfileResult({
+          ...profileResult,
+          advice: data.advice,
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Errore durante la generazione dei consigli IA.';
+      setAiAdviceError(msg);
+    } finally {
+      setIsGeneratingAiAdvice(false);
     }
   };
 
@@ -474,6 +311,162 @@ export default function App() {
     }
   };
 
+  // Esportazione Report PDF con jsPDF
+  const handleExportPdf = () => {
+    if (!profileResult) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 16;
+
+    // Header pulito stile Apple
+    doc.setFillColor(0, 113, 227); // #0071e3
+    doc.rect(0, 0, pageWidth, 22, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('SOCIAL PROFILE ANALYZER', 16, 14);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Report Analisi Profilo & Consigli', pageWidth - 16, 14, { align: 'right' });
+
+    y = 34;
+
+    // Profilo
+    doc.setTextColor(29, 29, 31); // #1d1d1f
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    const titleText = profileResult.displayName
+      ? `${profileResult.displayName} (@${profileResult.handle})`
+      : `@${profileResult.handle}`;
+    doc.text(titleText, 16, y);
+
+    y += 6;
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(110, 110, 115); // #6e6e73
+    doc.text(
+      `Piattaforma: ${profileResult.platform.toUpperCase()}  |  Data: ${new Date().toLocaleDateString('it-IT')}  |  URL: ${profileResult.url}`,
+      16,
+      y
+    );
+
+    y += 10;
+
+    // Box Metriche
+    doc.setFillColor(245, 245, 247); // #f5f5f7
+    doc.roundedRect(16, y, pageWidth - 32, 26, 3, 3, 'F');
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(29, 29, 31);
+    doc.text('METRICHE CHIAVE E SALUTE PROFILO', 20, y + 8);
+
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(110, 110, 115);
+    const followersTxt = `Follower: ${formatNumber(profileResult.followers)}`;
+    const followingTxt = `Seguiti: ${formatNumber(profileResult.following)}`;
+    const postsTxt = `Post/Video: ${formatNumber(profileResult.postsCount)}`;
+    const scoreTxt =
+      profileResult.advice?.overallScore !== undefined
+        ? `Punteggio Salute: ${profileResult.advice.overallScore}/100`
+        : `Completezza: ${profileResult.completeness}`;
+
+    doc.text(`${followersTxt}   |   ${followingTxt}   |   ${postsTxt}`, 20, y + 16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 113, 227);
+    doc.text(scoreTxt, 20, y + 22);
+
+    y += 34;
+
+    // Bio
+    if (profileResult.bio) {
+      doc.setFontSize(9.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(29, 29, 31);
+      doc.text('BIOGRAFIA DEL PROFILO', 16, y);
+      y += 5;
+
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(60, 60, 67);
+
+      const splitBio = doc.splitTextToSize(profileResult.bio, pageWidth - 32);
+      doc.text(splitBio, 16, y);
+      y += splitBio.length * 4.5 + 8;
+    }
+
+    // Sezione Consigli
+    if (profileResult.advice && profileResult.advice.tips.length > 0) {
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 113, 227);
+      doc.text('CONSIGLI PER MIGLIORARE IL PROFILO', 16, y);
+      y += 6;
+
+      if (profileResult.advice.summary) {
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(110, 110, 115);
+        const splitSummary = doc.splitTextToSize(profileResult.advice.summary, pageWidth - 32);
+        doc.text(splitSummary, 16, y);
+        y += splitSummary.length * 4.2 + 6;
+      }
+
+      profileResult.advice.tips.forEach((tip, idx) => {
+        if (y > 250) {
+          doc.addPage();
+          y = 20;
+        }
+
+        const priorityLabel =
+          tip.priority === 'high'
+            ? '[PRIORITÀ ALTA]'
+            : tip.priority === 'medium'
+            ? '[PRIORITÀ MEDIA]'
+            : '[BUONA PRATICA]';
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(29, 29, 31);
+        doc.text(`${idx + 1}. ${tip.title} ${priorityLabel}`, 16, y);
+        y += 4.5;
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(110, 110, 115);
+        const splitDesc = doc.splitTextToSize(tip.description, pageWidth - 32);
+        doc.text(splitDesc, 20, y);
+        y += splitDesc.length * 3.8 + 2;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 113, 227);
+        const actionTxt = `Passo concreto: ${tip.actionableStep}`;
+        const splitAction = doc.splitTextToSize(actionTxt, pageWidth - 32);
+        doc.text(splitAction, 20, y);
+        y += splitAction.length * 3.8 + 5;
+      });
+    }
+
+    const pageCount = doc.internal.pages.length - 1;
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(174, 174, 178);
+      doc.text(
+        `Social Profile Analyzer · Report @${profileResult.handle} · Pagina ${i} di ${pageCount}`,
+        16,
+        doc.internal.pageSize.getHeight() - 10
+      );
+    }
+
+    doc.save(`Report_Social_${profileResult.handle}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   const handleCopyAiResponse = () => {
     if (aiResult?.response) {
       navigator.clipboard.writeText(aiResult.response);
@@ -496,981 +489,1214 @@ export default function App() {
     return String(val);
   };
 
+  // Helper per Op.3: mostra SOLO tile con dato disponibile (niente tile vuoti, niente "0" o "—")
+  const isValidMetric = (val: number | string | undefined | null): boolean => {
+    if (val === undefined || val === null) return false;
+    if (typeof val === 'number') return val > 0;
+    const str = String(val).trim();
+    if (!str || str === '0' || str === '—' || str === '-' || str.toLowerCase() === 'null') {
+      return false;
+    }
+    return true;
+  };
+
+  // Piattaforme icone SVG
+  const renderPlatformIcon = (platform: 'instagram' | 'tiktok' | 'facebook', className = 'w-4 h-4') => {
+    if (platform === 'instagram') {
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+          <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+          <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+        </svg>
+      );
+    }
+    if (platform === 'tiktok') {
+      return (
+        <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.68 6.34 6.34 0 0 0 9.34 22a6.34 6.34 0 0 0 6.34-6.32V8.75a8.28 8.28 0 0 0 3.91 1.25V6.69z" />
+        </svg>
+      );
+    }
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+      </svg>
+    );
+  };
+
   const getPlatformBadge = (platform: 'instagram' | 'tiktok' | 'facebook') => {
     switch (platform) {
       case 'instagram':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-amber-500/20 text-pink-300 border border-pink-500/30">
-            Instagram
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#e1306c]/10 text-[#c13584]">
+            {renderPlatformIcon('instagram', 'w-3.5 h-3.5')}
+            <span>Instagram</span>
           </span>
         );
       case 'tiktok':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-cyan-950/50 text-cyan-300 border border-cyan-500/30">
-            TikTok
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#1d1d1f]/8 text-[#1d1d1f]">
+            {renderPlatformIcon('tiktok', 'w-3.5 h-3.5')}
+            <span>TikTok</span>
           </span>
         );
       case 'facebook':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-950/50 text-blue-300 border border-blue-500/30">
-            Facebook
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#0071e3]/10 text-[#0071e3]">
+            {renderPlatformIcon('facebook', 'w-3.5 h-3.5')}
+            <span>Facebook</span>
           </span>
         );
     }
   };
 
-  const getCompletenessBadge = (level: 'full' | 'partial' | 'none') => {
-    switch (level) {
-      case 'full':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            Completezza: Dati Completi (Full)
-          </span>
-        );
-      case 'partial':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-            Completezza: Dati Parziali (Partial)
-          </span>
-        );
-      case 'none':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30">
-            <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-            Completezza: Dati Non Estratti (None)
-          </span>
-        );
-    }
-  };
+  // Calcolo controlli per Op. 3 e Op. 4
+  const followersNum =
+    typeof profileResult?.followers === 'number'
+      ? profileResult.followers
+      : typeof profileResult?.followers === 'string'
+      ? parseFloat(profileResult.followers.replace(/,/g, ''))
+      : 0;
+
+  const followingNum =
+    typeof profileResult?.following === 'number'
+      ? profileResult.following
+      : typeof profileResult?.following === 'string'
+      ? parseFloat(profileResult.following.replace(/,/g, ''))
+      : 0;
+
+  const hasFollowerRatio =
+    profileResult &&
+    isValidMetric(profileResult.followers) &&
+    isValidMetric(profileResult.following) &&
+    followersNum > 0 &&
+    followingNum > 0;
+
+  const ratioValue = hasFollowerRatio ? followersNum / followingNum : 0;
+  const isRatioHealthy = hasFollowerRatio && ratioValue >= 1;
+
+  const bioLength = profileResult?.bio ? profileResult.bio.trim().length : 0;
+  const isBioOptimal = bioLength >= 40 && bioLength <= 150;
+  const isBioShort = bioLength > 0 && bioLength < 40;
+
+  // Calcolo Punteggio e Cerchio SVG
+  const overallScore =
+    profileResult?.advice?.overallScore !== undefined
+      ? profileResult.advice.overallScore
+      : profileResult?.completeness === 'full'
+      ? 85
+      : 60;
+
+  const circleRadius = 26;
+  const circleCircumference = 2 * Math.PI * circleRadius; // ~163.36
+  const circleDashoffset =
+    circleCircumference - (circleCircumference * Math.min(100, Math.max(0, overallScore))) / 100;
+
+  const scoreColor =
+    overallScore >= 80 ? '#34c759' : overallScore >= 50 ? '#ff9f0a' : '#ff3b30';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 antialiased flex flex-col font-sans selection:bg-indigo-500 selection:text-white">
-      {/* Barra di navigazione superiore */}
-      <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-              <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-lg text-white tracking-tight">
-                  Social Profile Analyzer
-                </span>
-                <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  Lettura automatica profilo
-                </span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#f5f5f7] text-[#1d1d1f] antialiased flex flex-col font-sans">
+      {/* Header a tutta larghezza con padding responsive */}
+      <header className="w-full bg-[#ffffff]/80 backdrop-blur-md border-b border-[#e5e5ea] sticky top-0 z-30 transition-colors">
+        <div className="w-full px-4 lg:px-8 2xl:px-12 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="font-semibold text-[17px] tracking-[-0.015em] text-[#1d1d1f] truncate">
+              Social Profile Analyzer
+            </span>
+            {profileResult && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-[#6e6e73]">
+                <span>/</span>
+                <span className="font-medium text-[#1d1d1f] truncate">@{profileResult.handle}</span>
+              </span>
+            )}
           </div>
 
-          {/* Badge stato connessione */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 text-xs shrink-0">
+            {profileResult && (
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileResult(null);
+                  setProfileUrl('');
+                }}
+                className="text-xs text-[#0071e3] hover:underline font-medium px-2 py-1 transition"
+              >
+                Nuova analisi
+              </button>
+            )}
+
             {isHealthLoading ? (
-              <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700/50">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
-                <span>Verifica backend...</span>
-              </div>
-            ) : healthError ? (
-              <div className="flex items-center gap-2 text-xs text-rose-400 bg-rose-950/40 px-3 py-1.5 rounded-lg border border-rose-800/40">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Backend disconnesso</span>
-                <button
-                  onClick={checkHealth}
-                  className="hover:text-rose-200 ml-1 p-0.5 rounded hover:bg-rose-900/50"
-                  title="Riprova connessione"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                </button>
-              </div>
-            ) : health?.openrouter.configured ? (
-              <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-950/40 px-3 py-1.5 rounded-lg border border-emerald-800/40">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>OpenRouter Pronto</span>
-              </div>
+              <span className="inline-flex items-center gap-1.5 text-[#6e6e73]">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0071e3]" />
+                <span className="hidden sm:inline">Connessione...</span>
+              </span>
+            ) : health?.status === 'ok' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#34c759]/10 text-[#248a3d]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#34c759]" />
+                <span>Online</span>
+              </span>
             ) : (
-              <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-950/40 px-3 py-1.5 rounded-lg border border-amber-800/40">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>OpenRouter (No Key)</span>
-              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#ff3b30]/10 text-[#d70015]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#ff3b30]" />
+                <span>Offline</span>
+              </span>
             )}
           </div>
         </div>
       </header>
 
-      {/* Contenuto Principale */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Banner informativo OpenRouter solo se manca la chiave */}
-        {!isHealthLoading && health && !health.openrouter.configured && (
-          <div className="p-4 rounded-2xl bg-amber-950/30 border border-amber-500/30 text-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg shadow-amber-950/10">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-semibold text-amber-100">
-                  OPENROUTER_API_KEY non configurata nel file .env
-                </p>
-                <p className="text-amber-300/80 text-xs mt-0.5">
-                  La lettura automatica dei profili social da link funziona senza AI né chiavi. Per collaudare anche il box OpenRouter in basso, imposta la chiave nel file <code className="px-1.5 py-0.5 rounded bg-black/40 text-amber-200 font-mono">.env</code>.
+      {/* Main a tutta larghezza con padding responsive: px-4 mobile, px-8 da lg, px-12 da 2xl */}
+      <main className="flex-1 w-full px-4 lg:px-8 2xl:px-12 flex flex-col">
+        {!profileResult ? (
+          /* ==================================================================== */
+          /* STATO PRE-ANALISI: Sezione iniziale ampia centrata verticalmente      */
+          /* ==================================================================== */
+          <div className="flex-1 flex flex-col justify-center items-center py-10 sm:py-16 lg:py-24 my-auto min-h-[calc(100vh-3.5rem-5rem)]">
+            <div className="w-full max-w-4xl mx-auto flex flex-col items-center text-center space-y-8">
+              {/* Titolo grande ed elegante */}
+              <div className="space-y-3 sm:space-y-4 max-w-2xl px-2">
+                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-semibold text-[#1d1d1f] tracking-tight leading-[1.12]">
+                  Analizza qualsiasi profilo social
+                </h1>
+                <p className="text-base sm:text-lg lg:text-xl text-[#6e6e73] leading-relaxed max-w-xl mx-auto">
+                  Estrai metriche pubbliche, verifica i parametri chiave e ricevi consigli mirati per migliorare la tua presenza online.
                 </p>
               </div>
-            </div>
-            <a
-              href="https://openrouter.ai/keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-medium text-amber-100 transition shrink-0"
-            >
-              <span>Genera Chiave OpenRouter</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          </div>
-        )}
 
-        {/* SEZIONE 1: Lettura Automatica Profilo da Link */}
-        <section className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur shadow-xl relative overflow-hidden space-y-6">
-          <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="max-w-3xl space-y-3 relative">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-300 text-xs font-medium border border-indigo-500/20">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Reader Pubblico Diretto • Protezione SSRF • Timeout 10s • Max 1 MB</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Lettura Dati Pubblici da Link
-            </h1>
-            <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-              Incolla il link HTTPS di un profilo pubblico <strong className="text-slate-200">Instagram</strong>, <strong className="text-slate-200">TikTok</strong> o <strong className="text-slate-200">Facebook</strong>. Il backend scarica la pagina in modalità protetta, estrae i metadati Open Graph, JSON incorporato e metriche senza fare uso di AI, screenshot o PDF.
-            </p>
-          </div>
-
-          {/* Esempi rapidi da cliccare */}
-          <div className="space-y-2">
-            <span className="text-xs text-slate-400 font-medium">
-              Esempi di profili pubblici da testare:
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {sampleProfiles.map((sample, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setProfileUrl(sample.url);
-                    handleAnalyzeProfile(sample.url);
+              {/* Barra di ricerca larga */}
+              <div className="w-full max-w-3xl px-2">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAnalyzeProfile();
                   }}
-                  disabled={isAnalyzing}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-slate-800/70 hover:bg-slate-800 hover:text-white text-slate-300 border border-slate-700/60 transition inline-flex items-center gap-1.5"
+                  className="w-full"
                 >
-                  <Link2 className="w-3 h-3 text-indigo-400" />
-                  <span>{sample.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Form di inserimento URL */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleAnalyzeProfile();
-            }}
-            className="space-y-3"
-          >
-            <label
-              htmlFor="profile-url"
-              className="block text-xs font-semibold text-slate-300 uppercase tracking-wider"
-            >
-              Link del profilo social
-            </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
-                  <Link2 className="w-5 h-5" />
-                </div>
-                <input
-                  id="profile-url"
-                  type="url"
-                  value={profileUrl}
-                  onChange={(e) => setProfileUrl(e.target.value)}
-                  placeholder="https://www.instagram.com/cristiano/ oppure https://www.tiktok.com/@tiktok"
-                  className="w-full pl-11 pr-4 py-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition"
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={isAnalyzing || !profileUrl.trim()}
-                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold text-sm shadow-lg shadow-indigo-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0 select-none"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Lettura in corso...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      <span>Analizza Profilo</span>
-                    </>
-                  )}
-                </button>
-
-                {profileResult && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setProfileResult(null);
-                      setAnalysisError(null);
-                    }}
-                    className="px-3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition"
-                    title="Azzera risultato"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-500">
-              * Vengono accettati esclusivamente host consentiti (instagram.com, tiktok.com, facebook.com). Indirizzi locali, IP diretti o host non allowlistati vengono bloccati dal modulo SSRF.
-            </p>
-          </form>
-
-          {/* Errore di validazione o fetch */}
-          {analysisError && (
-            <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-800/60 text-rose-200 space-y-1 text-sm">
-              <div className="flex items-center gap-2 font-semibold text-rose-300">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Impossibile completare la lettura del profilo</span>
-              </div>
-              <p className="text-xs text-rose-200/90 font-mono bg-black/40 p-2.5 rounded-lg whitespace-pre-wrap">
-                {analysisError}
-              </p>
-            </div>
-          )}
-
-          {/* SCHEDA RISULTATO PROFILO (ProfileData) */}
-          {profileResult && (
-            <div className="pt-6 border-t border-slate-800 space-y-6">
-              {/* Header scheda: Stato completezza e metriche di caricamento */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  {getPlatformBadge(profileResult.platform)}
-                  {getCompletenessBadge(profileResult.completeness)}
-                </div>
-
-                <div className="flex items-center gap-3 text-xs text-slate-400">
-                  {analysisDuration !== null && (
-                    <span className="inline-flex items-center gap-1 font-mono">
-                      <Clock className="w-3.5 h-3.5 text-slate-500" />
-                      {analysisDuration} ms
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleExportPdf}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition"
-                    title="Scarica il report in PDF"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Esporta Report PDF</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowRawJson(!showRawJson)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 text-xs font-medium border border-slate-700/60 transition"
-                  >
-                    <Code2 className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>{showRawJson ? 'Nascondi JSON' : 'Ispeziona JSON'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Avviso in caso di completezza parziale o assente */}
-              {(profileResult.completeness === 'partial' || profileResult.completeness === 'none') && (
-                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-start gap-3 shadow-lg shadow-amber-950/20">
-                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                  <div className="text-sm">
-                    <p className="font-medium text-amber-100 leading-relaxed">
-                      Non è stato possibile leggere tutti i dati pubblici di questo profilo. Nel prossimo passaggio potrai caricare degli screenshot per completare l'analisi.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Informazioni Principali del Profilo */}
-              <div className="bg-slate-950/80 rounded-2xl p-6 border border-slate-800 space-y-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-800/80">
-                  <div className="flex items-center gap-4">
-                    {/* Avatar con fallback su errore o immagine non disponibile */}
-                    <div className="relative shrink-0">
-                      {profileResult.avatarUrl && !avatarLoadError ? (
-                        <img
-                          src={profileResult.avatarUrl}
-                          alt={profileResult.displayName || profileResult.handle}
-                          onError={() => setAvatarLoadError(true)}
-                          className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-md"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 flex items-center justify-center text-slate-400 font-bold text-xl uppercase shadow-md">
-                          {profileResult.displayName ? profileResult.displayName.charAt(0) : profileResult.handle.charAt(0)}
-                        </div>
-                      )}
-                      {profileResult.verified && (
-                        <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white rounded-full p-0.5 shadow" title="Account Verificato">
-                          <BadgeCheck className="w-4 h-4" />
-                        </div>
+                  <div className="relative flex flex-col sm:flex-row items-stretch sm:items-center bg-white rounded-[22px] sm:rounded-[26px] border border-[#e5e5ea] p-2 shadow-[0_4px_24px_rgba(0,0,0,0.06)] focus-within:border-[#0071e3] focus-within:ring-4 focus-within:ring-[#0071e3]/15 transition-all">
+                    <div className="relative flex-1 flex items-center min-w-0 pl-3.5 sm:pl-4 pr-2 py-2 sm:py-0">
+                      <Search className="w-5 h-5 text-[#6e6e73] shrink-0" />
+                      <input
+                        id="profile-url-input"
+                        type="url"
+                        value={profileUrl}
+                        onChange={(e) => setProfileUrl(e.target.value)}
+                        placeholder="Incolla link Instagram, TikTok o Facebook..."
+                        className="w-full bg-transparent pl-3.5 pr-2 py-2 text-[15px] sm:text-[16px] text-[#1d1d1f] placeholder-[#6e6e73]/60 focus:outline-none"
+                        disabled={isAnalyzing}
+                      />
+                      {profileUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setProfileUrl('')}
+                          className="p-1.5 text-[#6e6e73] hover:text-[#1d1d1f] rounded-full hover:bg-[#f5f5f7] transition shrink-0"
+                          title="Cancella link"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       )}
                     </div>
 
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                          {profileResult.displayName || `@${profileResult.handle}`}
-                        </h2>
+                    <div className="p-1 sm:p-0 shrink-0">
+                      <button
+                        type="submit"
+                        disabled={isAnalyzing || !profileUrl.trim()}
+                        className="w-full sm:w-auto px-7 py-3 rounded-[16px] sm:rounded-[20px] bg-[#0071e3] hover:bg-[#0077ed] text-white font-medium text-sm sm:text-[15px] shadow-sm transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 select-none"
+                      >
+                        {isAnalyzing ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-white" />
+                            <span>Analisi...</span>
+                          </>
+                        ) : (
+                          <span>Analizza profilo</span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+
+                {/* Banner Errore */}
+                {analysisError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3.5 p-4 rounded-[18px] bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[#d70015] flex items-start gap-3 text-xs leading-relaxed text-left"
+                  >
+                    <AlertTriangle className="w-4 h-4 text-[#d70015] shrink-0 mt-0.5" />
+                    <div className="flex-1 space-y-0.5">
+                      <p className="font-semibold text-[#d70015]">Impossibile analizzare il link</p>
+                      <p className="text-[#d70015]/90">{analysisError}</p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Icone delle piattaforme & link di esempio rapido */}
+                <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 px-2 text-xs text-[#6e6e73]">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-center">
+                    <span className="text-[12px] font-medium text-[#6e6e73]">Piattaforme supportate:</span>
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center gap-1.5 text-[#1d1d1f]" title="Instagram">
+                        {renderPlatformIcon('instagram', 'w-4 h-4 text-[#e1306c]')}
+                        <span className="text-[12px] font-medium">Instagram</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-[#1d1d1f]" title="TikTok">
+                        {renderPlatformIcon('tiktok', 'w-4 h-4 text-[#1d1d1f]')}
+                        <span className="text-[12px] font-medium">TikTok</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-[#1d1d1f]" title="Facebook">
+                        {renderPlatformIcon('facebook', 'w-4 h-4 text-[#0071e3]')}
+                        <span className="text-[12px] font-medium">Facebook</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                    <span className="text-[11px] text-[#6e6e73]">Prova:</span>
+                    {sampleProfiles.map((sample, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setProfileUrl(sample.url);
+                          handleAnalyzeProfile(sample.url);
+                        }}
+                        disabled={isAnalyzing}
+                        className="text-[11px] px-2.5 py-1 rounded-full bg-white border border-[#e5e5ea] text-[#1d1d1f] hover:border-[#0071e3] hover:text-[#0071e3] transition shadow-xs"
+                      >
+                        {sample.label.split(' ')[1] || sample.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ==================================================================== */
+          /* STATO POST-ANALISI: Due colonne da lg in su (Sinistra sticky, destra  */
+          /* consigli in griglia 2 col da xl, 3 da 2xl + blocco CTA)              */
+          /* ==================================================================== */
+          <div className="w-full space-y-6 pt-5 pb-8">
+            {/* Barra di ricerca superiore compatta */}
+            <div className="w-full">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAnalyzeProfile();
+                }}
+                className="w-full max-w-4xl"
+              >
+                <div className="relative flex flex-col sm:flex-row items-stretch sm:items-center bg-white rounded-[20px] border border-[#e5e5ea] p-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] focus-within:border-[#0071e3] focus-within:ring-2 focus-within:ring-[#0071e3]/20 transition-all">
+                  <div className="relative flex-1 flex items-center min-w-0 pl-3.5 pr-2 py-1.5 sm:py-0">
+                    <Search className="w-4 h-4 text-[#6e6e73] shrink-0" />
+                    <input
+                      id="profile-url-input-post"
+                      type="url"
+                      value={profileUrl}
+                      onChange={(e) => setProfileUrl(e.target.value)}
+                      placeholder="Incolla un altro link Instagram, TikTok o Facebook..."
+                      className="w-full bg-transparent pl-3 pr-2 py-1.5 text-[14px] text-[#1d1d1f] placeholder-[#6e6e73]/60 focus:outline-none"
+                      disabled={isAnalyzing}
+                    />
+                    {profileUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setProfileUrl('')}
+                        className="p-1 text-[#6e6e73] hover:text-[#1d1d1f] rounded-full hover:bg-[#f5f5f7] transition shrink-0"
+                        title="Cancella link"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="p-1 sm:p-0 shrink-0 flex items-center gap-2">
+                    <button
+                      type="submit"
+                      disabled={isAnalyzing || !profileUrl.trim()}
+                      className="w-full sm:w-auto px-5 py-2 rounded-[14px] bg-[#0071e3] hover:bg-[#0077ed] text-white font-medium text-xs sm:text-sm shadow-sm transition active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 select-none"
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                          <span>Analisi...</span>
+                        </>
+                      ) : (
+                        <span>Analizza</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {analysisError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-3 p-3.5 rounded-[16px] bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[#d70015] flex items-start gap-3 text-xs leading-relaxed max-w-4xl"
+                >
+                  <AlertTriangle className="w-4 h-4 text-[#d70015] shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-0.5">
+                    <p className="font-semibold text-[#d70015]">Impossibile analizzare il link</p>
+                    <p className="text-[#d70015]/90">{analysisError}</p>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Layout responsive a due colonne (da lg in su) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start w-full">
+              {/* ================================================================ */}
+              {/* COLONNA SINISTRA (STICKY): Scheda profilo con punteggio e tile    */}
+              {/* ================================================================ */}
+              <div className="lg:col-span-5 xl:col-span-4 2xl:col-span-3 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto space-y-5">
+                {/* Banner dati parziali (se presente) */}
+                {(profileResult.completeness === 'partial' || profileResult.completeness === 'none') && (
+                  <div className="p-3.5 rounded-[18px] bg-[#ff9f0a]/12 border border-[#ff9f0a]/25 text-[#b45309] flex items-start gap-2.5 text-xs">
+                    <AlertTriangle className="w-4 h-4 text-[#b45309] shrink-0 mt-0.5" />
+                    <div className="leading-relaxed">
+                      <span className="font-semibold">Dati pubblici parziali: </span>
+                      <span>
+                        Alcuni metadati non sono esposti pubblicamente senza login. L'analisi si basa sui dati accessibili.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* CARD PROFILO */}
+                <div className="bg-white rounded-[24px] border border-[#e5e5ea] p-5 sm:p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] space-y-5">
+                  {/* Header Profilo con Avatar, Nomi, Badge e Punteggio Circolare */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3.5 min-w-0">
+                      <div className="relative shrink-0">
+                        {profileResult.avatarUrl && !avatarLoadError ? (
+                          <img
+                            src={profileResult.avatarUrl}
+                            alt={profileResult.displayName || profileResult.handle}
+                            onError={() => setAvatarLoadError(true)}
+                            className="w-14 h-14 sm:w-16 sm:h-16 rounded-[18px] object-cover border border-[#e5e5ea] shadow-xs"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-[18px] bg-[#f5f5f7] border border-[#e5e5ea] flex items-center justify-center text-[#1d1d1f] font-semibold text-xl uppercase shadow-xs">
+                            {profileResult.displayName
+                              ? profileResult.displayName.charAt(0)
+                              : profileResult.handle.charAt(0)}
+                          </div>
+                        )}
                         {profileResult.verified && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
-                            <BadgeCheck className="w-3 h-3" />
-                            Verificato
-                          </span>
+                          <div
+                            className="absolute -bottom-1 -right-1 bg-[#0071e3] text-white rounded-full p-0.5 shadow-sm"
+                            title="Account Verificato"
+                          >
+                            <Check className="w-3 h-3" />
+                          </div>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2 text-sm text-slate-400">
-                        <span className="font-mono text-indigo-400">@{profileResult.handle}</span>
-                        <span>•</span>
-                        <a
-                          href={profileResult.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white underline decoration-slate-600 hover:decoration-white transition"
+                      <div className="space-y-1 min-w-0">
+                        <h2 className="text-lg sm:text-xl font-semibold text-[#1d1d1f] tracking-tight truncate">
+                          {profileResult.displayName || `@${profileResult.handle}`}
+                        </h2>
+
+                        <div className="flex items-center gap-1.5 text-xs text-[#6e6e73] flex-wrap">
+                          <span className="font-medium text-[#1d1d1f] truncate">@{profileResult.handle}</span>
+                          <span>·</span>
+                          {getPlatformBadge(profileResult.platform)}
+                        </div>
+
+                        <div className="pt-0.5">
+                          <a
+                            href={profileResult.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] text-[#0071e3] hover:underline"
+                          >
+                            <span>Visita profilo</span>
+                            <ArrowUpRight className="w-3 h-3" />
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Destra: Punteggio Anello Circolare Stile Apple */}
+                    <div className="shrink-0 flex flex-col items-center">
+                      <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 64 64">
+                          <circle
+                            cx="32"
+                            cy="32"
+                            r={circleRadius}
+                            stroke="#e5e5ea"
+                            strokeWidth="5"
+                            fill="transparent"
+                          />
+                          <circle
+                            cx="32"
+                            cy="32"
+                            r={circleRadius}
+                            stroke={scoreColor}
+                            strokeWidth="5"
+                            strokeDasharray={circleCircumference}
+                            strokeDashoffset={circleDashoffset}
+                            strokeLinecap="round"
+                            fill="transparent"
+                            className="transition-all duration-500 ease-out"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-base sm:text-lg font-semibold text-[#1d1d1f] tabular-nums leading-none">
+                            {overallScore}
+                          </span>
+                          <span className="text-[8px] text-[#6e6e73] font-medium leading-none mt-0.5">
+                            /100
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-medium text-[#6e6e73] mt-1 text-center">
+                        Salute
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Tile statistiche (Follower, Seguiti, Post, Like totali) */}
+                  {(() => {
+                    const statTiles = [];
+                    if (isValidMetric(profileResult.followers)) {
+                      statTiles.push({
+                        id: 'followers',
+                        label: 'FOLLOWER',
+                        value: formatNumber(profileResult.followers),
+                      });
+                    }
+                    if (isValidMetric(profileResult.following)) {
+                      statTiles.push({
+                        id: 'following',
+                        label: 'SEGUITI',
+                        value: formatNumber(profileResult.following),
+                      });
+                    }
+                    if (isValidMetric(profileResult.postsCount)) {
+                      statTiles.push({
+                        id: 'posts',
+                        label: 'POST',
+                        value: formatNumber(profileResult.postsCount),
+                      });
+                    }
+                    if (isValidMetric(profileResult.totalLikes)) {
+                      statTiles.push({
+                        id: 'likes',
+                        label: 'LIKE TOTALI',
+                        value: formatNumber(profileResult.totalLikes),
+                      });
+                    }
+                    if (statTiles.length === 0) return null;
+
+                    return (
+                      <div
+                        className={`grid gap-2.5 ${
+                          statTiles.length === 4
+                            ? 'grid-cols-2'
+                            : statTiles.length === 3
+                            ? 'grid-cols-3'
+                            : statTiles.length === 2
+                            ? 'grid-cols-2'
+                            : 'grid-cols-1'
+                        }`}
+                      >
+                        {statTiles.map((tile) => (
+                          <div
+                            key={tile.id}
+                            className="bg-[#f5f5f7] rounded-[16px] p-3 sm:p-3.5 transition"
+                          >
+                            <span className="text-[10px] font-semibold text-[#6e6e73] uppercase tracking-wider block">
+                              {tile.label}
+                            </span>
+                            <span className="text-lg sm:text-xl font-semibold text-[#1d1d1f] tabular-nums block mt-0.5 truncate">
+                              {tile.value}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Biografia del Profilo */}
+                  {(profileResult.bio || profileResult.externalLink) && (
+                    <div className="bg-[#f5f5f7] rounded-[16px] p-3.5 text-xs space-y-2">
+                      {profileResult.bio && (
+                        <p className="text-[#1d1d1f] text-[13px] leading-relaxed whitespace-pre-wrap">
+                          {profileResult.bio}
+                        </p>
+                      )}
+                      {profileResult.externalLink && (
+                        <div className="flex items-center gap-1.5 text-[#0071e3] pt-0.5">
+                          <Link2 className="w-3.5 h-3.5 shrink-0" />
+                          <a
+                            href={profileResult.externalLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline truncate font-medium text-xs"
+                          >
+                            {profileResult.externalLink}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Righe di controllo qualità */}
+                  <div className="space-y-0 divide-y divide-[#e5e5ea] pt-1">
+                    <div className="pb-2.5 text-xs font-semibold text-[#6e6e73] uppercase tracking-wider">
+                      Controlli Qualità Profilo
+                    </div>
+
+                    {/* 1. Rapporto follower / seguiti */}
+                    {hasFollowerRatio && (
+                      <div className="py-2.5 flex items-start gap-2.5">
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                            isRatioHealthy ? 'bg-[#34c759]/12 text-[#248a3d]' : 'bg-[#ff9f0a]/15 text-[#b45309]'
+                          }`}
                         >
-                          <span>Apri link pubblico</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                          {isRatioHealthy ? (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          ) : (
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[13px] font-medium text-[#1d1d1f]">
+                              Rapporto follower / seguiti
+                            </span>
+                            <span className="text-xs font-medium text-[#6e6e73] tabular-nums">
+                              {ratioValue >= 10 ? ratioValue.toFixed(1) : ratioValue.toFixed(2)}x
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#6e6e73] mt-0.5 leading-relaxed">
+                            {isRatioHealthy
+                              ? 'Ottimo rapporto: più follower che seguiti.'
+                              : 'Seguiti superiori ai follower.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. Lunghezza Bio */}
+                    {profileResult.bio !== undefined && (
+                      <div className="py-2.5 flex items-start gap-2.5">
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                            isBioOptimal
+                              ? 'bg-[#34c759]/12 text-[#248a3d]'
+                              : isBioShort
+                              ? 'bg-[#ff9f0a]/15 text-[#b45309]'
+                              : 'bg-[#ff3b30]/12 text-[#d70015]'
+                          }`}
+                        >
+                          {isBioOptimal ? (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          ) : isBioShort ? (
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                          ) : (
+                            <XCircle className="w-3.5 h-3.5" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[13px] font-medium text-[#1d1d1f]">
+                              Lunghezza biografia
+                            </span>
+                            <span className="text-xs font-medium text-[#6e6e73] tabular-nums">
+                              {bioLength} car.
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#6e6e73] mt-0.5 leading-relaxed">
+                            {isBioOptimal
+                              ? 'Lunghezza ottimale per chiarezza e CTA.'
+                              : isBioShort
+                              ? 'Bio sintetica: arricchiscila con parole chiave.'
+                              : 'Bio vuota: aggiungi una descrizione chiara.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Link Esterno */}
+                    <div className="py-2.5 flex items-start gap-2.5">
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                          profileResult.externalLink
+                            ? 'bg-[#34c759]/12 text-[#248a3d]'
+                            : 'bg-[#ff9f0a]/15 text-[#b45309]'
+                        }`}
+                      >
+                        {profileResult.externalLink ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[13px] font-medium text-[#1d1d1f]">
+                            Link esterno / CTA
+                          </span>
+                          <span className="text-xs font-medium text-[#6e6e73]">
+                            {profileResult.externalLink ? 'Configurato' : 'Assente'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#6e6e73] mt-0.5 leading-relaxed">
+                          {profileResult.externalLink
+                            ? 'Punto di atterraggio attivo per conversioni.'
+                            : 'Nessun link esterno rilevato nel profilo.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 4. Completezza Estrazione */}
+                    <div className="py-2.5 flex items-start gap-2.5">
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                          profileResult.completeness === 'full'
+                            ? 'bg-[#34c759]/12 text-[#248a3d]'
+                            : 'bg-[#ff9f0a]/15 text-[#b45309]'
+                        }`}
+                      >
+                        {profileResult.completeness === 'full' ? (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[13px] font-medium text-[#1d1d1f]">
+                            Completezza metadati
+                          </span>
+                          <span className="text-xs font-medium text-[#6e6e73]">
+                            {profileResult.completeness === 'full' ? 'Completa' : 'Parziale'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#6e6e73] mt-0.5 leading-relaxed">
+                          {profileResult.completeness === 'full'
+                            ? 'Tutti i dati pubblici previsti acquisiti.'
+                            : 'Alcuni campi richiedono login per l\'accesso.'}
+                        </p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="self-stretch sm:self-auto flex items-center gap-2 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={handleExportPdf}
-                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white shadow-md transition"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Esporta Report PDF</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleAnalyzeProfile(profileResult.url)}
-                      disabled={isAnalyzing}
-                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition"
-                      title="Ricarica profilo"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
-                      <span>Ricarica Dati</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Griglia Metriche / Statistiche */}
-                <div
-                  className={`grid grid-cols-1 gap-3 ${
-                    profileResult.totalLikes !== undefined
-                      ? 'sm:grid-cols-2 lg:grid-cols-4'
-                      : 'sm:grid-cols-3'
-                  }`}
-                >
-                  <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0">
-                      <Users className="w-5 h-5" />
+                  {/* Barra Azioni Scheda (Export PDF, Ricarica, JSON) */}
+                  <div className="pt-3 border-t border-[#e5e5ea] flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[11px] text-[#6e6e73]">
+                      {analysisDuration !== null && (
+                        <span className="tabular-nums">Tempo: {analysisDuration} ms</span>
+                      )}
                     </div>
-                    <div>
-                      <span className="text-slate-400 text-xs block">Follower</span>
-                      <span className="text-lg font-bold text-white font-mono">
-                        {formatNumber(profileResult.followers)}
-                      </span>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleExportPdf}
+                        className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-[12px] bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-medium shadow-xs transition active:scale-[0.98]"
+                        title="Scarica il report PDF"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>PDF</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAnalyzeProfile(profileResult.url)}
+                        disabled={isAnalyzing}
+                        className="p-1.5 rounded-[12px] bg-[#f5f5f7] hover:bg-[#e5e5ea] text-[#1d1d1f] text-xs font-medium border border-[#e5e5ea] transition"
+                        title="Ricarica dati profilo"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowRawJson(!showRawJson)}
+                        className="p-1.5 rounded-[12px] bg-[#f5f5f7] hover:bg-[#e5e5ea] text-[#6e6e73] hover:text-[#1d1d1f] text-xs font-medium border border-[#e5e5ea] transition"
+                        title="Ispeziona JSON"
+                      >
+                        <Code2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
 
-                  <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
-                      <UserCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs block">Seguiti (Following)</span>
-                      <span className="text-lg font-bold text-white font-mono">
-                        {formatNumber(profileResult.following)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center shrink-0">
-                      <Video className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-slate-400 text-xs block">Post / Video Totali</span>
-                      <span className="text-lg font-bold text-white font-mono">
-                        {formatNumber(profileResult.postsCount)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {profileResult.totalLikes !== undefined && (
-                    <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center shrink-0">
-                        <Heart className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <span className="text-slate-400 text-xs block">Like Totali</span>
-                        <span className="text-lg font-bold text-white font-mono">
-                          {formatNumber(profileResult.totalLikes)}
-                        </span>
+                  {/* Ispezione JSON opzionale */}
+                  {showRawJson && (
+                    <div className="pt-2">
+                      <div className="bg-[#f5f5f7] rounded-[16px] p-3 text-xs font-mono space-y-2 border border-[#e5e5ea]">
+                        <div className="flex items-center justify-between text-[#6e6e73]">
+                          <span>Dati estratti (JSON)</span>
+                          <button
+                            type="button"
+                            onClick={handleCopyJson}
+                            className="inline-flex items-center gap-1 text-[#0071e3] hover:underline"
+                          >
+                            {jsonCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{jsonCopied ? 'Copiato' : 'Copia'}</span>
+                          </button>
+                        </div>
+                        <pre className="p-2.5 bg-white rounded-[10px] border border-[#e5e5ea] overflow-x-auto max-h-56 leading-relaxed text-[#1d1d1f] text-[11px]">
+                          {JSON.stringify(profileResult, null, 2)}
+                        </pre>
                       </div>
                     </div>
                   )}
                 </div>
+              </div>
 
-                {/* Bio & Link Esterno */}
-                {(profileResult.bio || profileResult.externalLink) && (
-                  <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800/60 space-y-2">
-                    {profileResult.bio && (
-                      <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
-                        {profileResult.bio}
-                      </p>
-                    )}
-                    {profileResult.externalLink && (
-                      <div className="pt-2 flex items-center gap-2 text-xs">
-                        <Link2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                        <span className="text-slate-400">Link in bio:</span>
-                        <a
-                          href={profileResult.externalLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-400 hover:text-indigo-300 underline font-mono truncate"
-                        >
-                          {profileResult.externalLink}
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* SEZIONE CONSIGLI MIRATI PER MIGLIORARE IL PROFILO */}
+              {/* ================================================================ */}
+              {/* COLONNA DESTRA: Consigli in griglia (2 col da xl, 3 da 2xl)      */}
+              {/* + Blocco CTA + Ultimi video pubblici                             */}
+              {/* ================================================================ */}
+              <div className="lg:col-span-7 xl:col-span-8 2xl:col-span-9 space-y-6 min-w-0">
                 {profileResult.advice && (
-                  <div className="pt-6 border-t border-slate-800 space-y-5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-indigo-950/50 via-purple-950/40 to-slate-900/70 p-5 rounded-2xl border border-indigo-500/30">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                            <Target className="w-4.5 h-4.5" />
-                          </div>
-                          <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                            <span>Consigli Mirati per Migliorare il Profilo</span>
-                            {profileResult.advice.aiGenerated && (
-                              <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1">
-                                <Sparkles className="w-3 h-3 text-purple-300" />
-                                Potenziato da IA
-                              </span>
-                            )}
-                          </h3>
-                        </div>
-                        <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
-                          {profileResult.advice.summary}
-                        </p>
+                  <div className="space-y-5">
+                    {/* Header Consigli + Genera con IA */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-xl sm:text-2xl font-semibold text-[#1d1d1f] tracking-tight flex items-center gap-2">
+                          <span>Consigli per il Profilo</span>
+                          {profileResult.advice.aiGenerated && (
+                            <span className="text-[10px] font-semibold uppercase px-2.5 py-0.5 rounded-full bg-[#0071e3]/10 text-[#0071e3]">
+                              AI Potenziata
+                            </span>
+                          )}
+                        </h3>
+                        {profileResult.advice.summary && (
+                          <p className="text-xs sm:text-[13px] text-[#6e6e73] mt-1 max-w-2xl leading-relaxed">
+                            {profileResult.advice.summary}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Profile Health Score Gauge */}
-                      {typeof profileResult.advice.overallScore === 'number' && (
-                        <div className="flex items-center gap-3 bg-slate-950/80 px-4 py-3 rounded-xl border border-slate-800 shrink-0 self-start sm:self-auto">
-                          <div className="text-right">
-                            <span className="text-[10px] uppercase font-semibold text-slate-400 block">
-                              Salute Profilo
-                            </span>
-                            <span className="text-xl font-extrabold text-white font-mono">
-                              {profileResult.advice.overallScore}/100
-                            </span>
-                          </div>
-                          <div className="w-12 h-12 rounded-full bg-slate-900 border-2 border-indigo-500/40 flex items-center justify-center relative shadow-inner">
-                            <span className={`text-xs font-bold ${
-                              profileResult.advice.overallScore >= 80
-                                ? 'text-emerald-400'
-                                : profileResult.advice.overallScore >= 50
-                                ? 'text-amber-400'
-                                : 'text-rose-400'
-                            }`}>
-                              {profileResult.advice.overallScore}%
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Filtri per Categoria */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                      <div className="flex flex-wrap gap-1.5">
-                        {[
-                          { id: 'all', label: 'Tutti i Consigli', count: profileResult.advice.tips.length },
-                          { id: 'bio', label: 'Bio & CTA', count: profileResult.advice.tips.filter(t => t.category === 'bio').length },
-                          { id: 'content', label: 'Contenuti', count: profileResult.advice.tips.filter(t => t.category === 'content').length },
-                          { id: 'engagement', label: 'Engagement', count: profileResult.advice.tips.filter(t => t.category === 'engagement').length },
-                          { id: 'trust', label: 'Fiducia & Branding', count: profileResult.advice.tips.filter(t => t.category === 'trust').length },
-                          { id: 'growth', label: 'Crescita', count: profileResult.advice.tips.filter(t => t.category === 'growth').length },
-                        ].filter(cat => cat.id === 'all' || cat.count > 0).map((cat) => (
-                          <button
-                            key={cat.id}
-                            type="button"
-                            onClick={() => setSelectedCategory(cat.id as any)}
-                            className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition flex items-center gap-1.5 ${
-                              selectedCategory === cat.id
-                                ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
-                                : 'bg-slate-900/60 hover:bg-slate-900 text-slate-400 hover:text-slate-200 border-slate-800'
-                            }`}
-                          >
-                            <span>{cat.label}</span>
-                            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px] font-mono">
-                              {cat.count}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Pulsante per generazione consigli IA */}
                       <button
                         type="button"
                         onClick={handleGenerateAiAdvice}
                         disabled={isGeneratingAiAdvice}
-                        className="text-xs px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium shadow transition inline-flex items-center gap-1.5 disabled:opacity-50"
+                        className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[14px] bg-white border border-[#e5e5ea] hover:border-[#0071e3] text-[#0071e3] text-xs font-medium transition shadow-xs disabled:opacity-50 shrink-0"
                       >
                         {isGeneratingAiAdvice ? (
                           <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Elaborazione IA in corso...</span>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0071e3]" />
+                            <span>Elaborazione IA...</span>
                           </>
                         ) : (
                           <>
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>{profileResult.advice.aiGenerated ? 'Rigenera Consigli IA' : 'Genera Consigli Avanzati con IA'}</span>
+                            <Sparkles className="w-3.5 h-3.5 text-[#0071e3]" />
+                            <span>{profileResult.advice.aiGenerated ? 'Rigenera con IA' : 'Genera con IA'}</span>
                           </>
                         )}
                       </button>
                     </div>
 
                     {aiAdviceError && (
-                      <div className="text-xs p-3 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-300">
+                      <div className="p-3.5 rounded-[16px] bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[#d70015] text-xs">
                         {aiAdviceError}
                       </div>
                     )}
 
-                    {/* Griglia delle schede di consiglio */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Filtri categoria */}
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {[
+                        { id: 'all' as const, label: 'Tutti', count: profileResult.advice.tips.length },
+                        { id: 'bio' as const, label: 'Bio & CTA', count: profileResult.advice.tips.filter(t => t.category === 'bio').length },
+                        { id: 'content' as const, label: 'Contenuti', count: profileResult.advice.tips.filter(t => t.category === 'content').length },
+                        { id: 'community' as const, label: 'Community', count: profileResult.advice.tips.filter(t => t.category === 'community' || (t.category as string) === 'engagement').length },
+                        { id: 'trust' as const, label: 'Fiducia', count: profileResult.advice.tips.filter(t => t.category === 'trust').length },
+                        { id: 'growth' as const, label: 'Crescita', count: profileResult.advice.tips.filter(t => t.category === 'growth').length },
+                      ]
+                        .filter(cat => cat.id === 'all' || cat.count > 0)
+                        .map((cat) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setSelectedCategory(cat.id as any)}
+                            className={`text-xs px-3 py-1.5 rounded-[12px] font-medium transition flex items-center gap-1.5 ${
+                              selectedCategory === cat.id
+                                ? 'bg-[#1d1d1f] text-white shadow-xs'
+                                : 'bg-white text-[#6e6e73] hover:text-[#1d1d1f] border border-[#e5e5ea]'
+                            }`}
+                          >
+                            <span>{cat.label}</span>
+                            <span
+                              className={`text-[10px] tabular-nums font-mono px-1 rounded-full ${
+                                selectedCategory === cat.id ? 'bg-white/20 text-white' : 'bg-[#f5f5f7] text-[#6e6e73]'
+                              }`}
+                            >
+                              {cat.count}
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+
+                    {/* GRIGLIA CONSIGLI: 2 colonne da xl, 3 da 2xl. Card ad altezza uniforme senza spazi vuoti */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 items-stretch">
                       {profileResult.advice.tips
-                        .filter((tip) => selectedCategory === 'all' || tip.category === selectedCategory)
+                        .filter((tip) => {
+                          if (selectedCategory === 'all') return true;
+                          if (selectedCategory === 'community' || (selectedCategory as string) === 'engagement') {
+                            return tip.category === 'community' || (tip.category as string) === 'engagement';
+                          }
+                          return tip.category === selectedCategory;
+                        })
                         .map((tip) => (
                           <div
                             key={tip.id}
-                            className="p-4 rounded-2xl bg-slate-900/70 border border-slate-800/90 flex flex-col justify-between gap-3 relative group hover:border-slate-700 transition shadow-md"
+                            className="bg-white rounded-[22px] border border-[#e5e5ea] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] hover:border-[#d1d1d6] transition-all flex flex-col justify-between gap-3 h-full"
                           >
-                            <div className="space-y-2">
+                            <div className="space-y-2 flex-1 flex flex-col">
+                              {/* Categoria e Pill Priorità */}
                               <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
-                                  {tip.category === 'bio' ? 'Bio & CTA' : tip.category === 'content' ? 'Contenuti' : tip.category === 'engagement' ? 'Engagement' : tip.category === 'trust' ? 'Fiducia' : 'Crescita'}
+                                <span className="text-[10px] uppercase font-semibold text-[#6e6e73] tracking-wider">
+                                  {tip.category === 'bio'
+                                    ? 'Bio & CTA'
+                                    : tip.category === 'content'
+                                    ? 'Contenuti'
+                                    : tip.category === 'community' || (tip.category as string) === 'engagement'
+                                    ? 'Community'
+                                    : tip.category === 'trust'
+                                    ? 'Fiducia'
+                                    : 'Crescita'}
                                 </span>
 
-                                {/* Priority Badge */}
                                 {tip.priority === 'high' ? (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/30">
-                                    🔴 Priorità Alta
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#ff3b30]/10 text-[#d70015]">
+                                    Alta Priorità
                                   </span>
                                 ) : tip.priority === 'medium' ? (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
-                                    🟡 Priorità Media
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#ff9f0a]/12 text-[#b45309]">
+                                    Media Priorità
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/30">
-                                    🔵 Suggerimento
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#34c759]/12 text-[#248a3d]">
+                                    Buona Pratica
                                   </span>
                                 )}
                               </div>
 
-                              <h4 className="text-sm font-bold text-white tracking-tight leading-snug">
+                              <h4 className="text-[15px] font-semibold text-[#1d1d1f] tracking-tight leading-snug">
                                 {tip.title}
                               </h4>
-                              <p className="text-xs text-slate-300 leading-relaxed">
+
+                              <p className="text-xs text-[#6e6e73] leading-relaxed flex-1">
                                 {tip.description}
                               </p>
                             </div>
 
-                            {/* Actionable Step Box */}
-                            <div className="mt-2 p-3 rounded-xl bg-slate-950/80 border border-indigo-500/20 text-xs text-indigo-200/90 flex items-start gap-2.5">
-                              <Zap className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                              <div>
-                                <strong className="text-indigo-300 font-semibold block mb-0.5">
-                                  Azione Pratica Consigliata:
-                                </strong>
-                                <span>{tip.actionableStep}</span>
-                              </div>
+                            {/* Passo concreto fissato in basso a fondo card */}
+                            <div className="bg-[#f5f5f7] rounded-[14px] p-3 text-xs text-[#1d1d1f] border border-[#e5e5ea]/50 space-y-0.5 mt-auto">
+                              <span className="font-semibold text-[#1d1d1f] block text-[11px] uppercase tracking-wider text-[#6e6e73]">
+                                Passo concreto:
+                              </span>
+                              <p className="text-xs leading-relaxed text-[#1d1d1f] font-normal">
+                                {tip.actionableStep}
+                              </p>
                             </div>
                           </div>
                         ))}
                     </div>
-                  </div>
-                )}
 
-                {/* Post recenti estratti (es. TikTok itemList) */}
-                {profileResult.recentPosts && profileResult.recentPosts.length > 0 && (
-                  <div className="space-y-3 pt-2">
-                    <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                      <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Ultimi Video Pubblici Rilevati ({profileResult.recentPosts.length})</span>
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {profileResult.recentPosts.map((post, pIdx) => (
-                        <div
-                          key={pIdx}
-                          className="p-3.5 rounded-xl bg-slate-900/50 border border-slate-800 flex flex-col justify-between gap-2.5 text-xs"
+                    {/* BLOCCO CTA STRATEGICO */}
+                    <div className="bg-gradient-to-br from-[#1d1d1f] via-[#2c2c2e] to-[#1d1d1f] text-white rounded-[24px] p-6 sm:p-7 shadow-[0_4px_24px_rgba(0,0,0,0.08)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 mt-6">
+                      <div className="space-y-1.5 max-w-xl">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/10 text-white/90">
+                          <Sparkles className="w-3 h-3 text-[#34c759]" />
+                          <span>Report Strategico</span>
+                        </div>
+                        <h4 className="text-lg sm:text-xl font-semibold tracking-tight text-white">
+                          Pronto a potenziare il profilo @{profileResult.handle}?
+                        </h4>
+                        <p className="text-xs sm:text-[13px] text-white/70 leading-relaxed">
+                          Esporta il report completo in PDF con le metriche rilevate, il punteggio di salute e tutti i passi concreti per il tuo team o i tuoi clienti.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={handleExportPdf}
+                          className="px-5 py-3 rounded-[16px] bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs sm:text-sm font-semibold shadow-sm transition active:scale-[0.98] flex items-center justify-center gap-2"
                         >
-                          <p className="text-slate-200 line-clamp-2">
-                            {post.caption || 'Nessuna descrizione specificata'}
-                          </p>
-
-                          <div className="flex items-center justify-between text-slate-400 font-mono text-[11px] pt-1 border-t border-slate-800/60">
-                            <div className="flex items-center gap-3">
-                              {post.likes !== undefined && <span>❤️ {formatNumber(post.likes)}</span>}
-                              {post.views !== undefined && <span>👁️ {formatNumber(post.views)}</span>}
-                              {post.comments !== undefined && <span>💬 {formatNumber(post.comments)}</span>}
-                            </div>
-                            {post.url && (
-                              <a
-                                href={post.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300"
-                              >
-                                <span>Guarda</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
+                          <Download className="w-4 h-4" />
+                          <span>Esporta Report PDF</span>
+                        </button>
+                        {!profileResult.advice.aiGenerated && (
+                          <button
+                            type="button"
+                            onClick={handleGenerateAiAdvice}
+                            disabled={isGeneratingAiAdvice}
+                            className="px-4 py-3 rounded-[16px] bg-white/10 hover:bg-white/15 text-white text-xs sm:text-sm font-medium border border-white/10 transition active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+                          >
+                            {isGeneratingAiAdvice ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                                <span>Elaborazione...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5 text-[#34c759]" />
+                                <span>Approfondisci con IA</span>
+                              </>
                             )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Ultimi video pubblici (se presenti) */}
+                {profileResult.recentPosts && profileResult.recentPosts.length > 0 && (
+                  <div className="bg-white rounded-[22px] border border-[#e5e5ea] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-[#1d1d1f] uppercase tracking-wider">
+                        Ultimi Video Pubblici ({profileResult.recentPosts.length})
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-[#e5e5ea]">
+                      {profileResult.recentPosts.map((post, pIdx) => (
+                        <div key={pIdx} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[#1d1d1f] truncate font-medium">
+                              {post.caption || 'Nessuna descrizione'}
+                            </p>
+                            <div className="flex items-center gap-3 text-[#6e6e73] text-[11px] mt-0.5 tabular-nums">
+                              {post.likes !== undefined && <span>{formatNumber(post.likes)} like</span>}
+                              {post.views !== undefined && <span>{formatNumber(post.views)} viste</span>}
+                              {post.comments !== undefined && <span>{formatNumber(post.comments)} commenti</span>}
+                            </div>
                           </div>
+
+                          {post.url && (
+                            <a
+                              href={post.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[#0071e3] hover:underline text-xs shrink-0"
+                            >
+                              <span>Vedi</span>
+                              <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
 
-                {/* Avvisi, note di login wall o particolarità */}
-                {profileResult.warnings && profileResult.warnings.length > 0 && (
-                  <div className="space-y-2 pt-2">
-                    <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Note e Avvisi sulla lettura pubblica ({profileResult.warnings.length})</span>
-                    </h3>
-                    <div className="space-y-1.5">
-                      {profileResult.warnings.map((warn, wIdx) => (
-                        <div
-                          key={wIdx}
-                          className="text-xs p-2.5 rounded-lg bg-amber-950/20 border border-amber-500/20 text-amber-200/90 flex items-start gap-2"
-                        >
-                          <span className="text-amber-400 mt-0.5">•</span>
-                          <span>{warn}</span>
-                        </div>
-                      ))}
+        {/* PANNELLO TECNICO (Sezione comprimibile "Strumenti sviluppatore", chiusa di default) */}
+        <section className="w-full pt-6 border-t border-[#e5e5ea] mt-auto pb-8">
+          <div className="bg-white rounded-[20px] border border-[#e5e5ea] shadow-xs overflow-hidden transition-all">
+            <button
+              type="button"
+              onClick={() => setShowDevTools(!showDevTools)}
+              className="w-full p-4 flex items-center justify-between text-left hover:bg-[#f5f5f7]/60 transition"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-full bg-[#f5f5f7] flex items-center justify-center text-[#6e6e73]">
+                  <Cpu className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-[#1d1d1f] block">
+                    Strumenti sviluppatore
+                  </span>
+                  <span className="text-[11px] text-[#6e6e73]">
+                    Stato server, diagnostica backend e collaudo modello AI
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                    health?.status === 'ok'
+                      ? 'bg-[#34c759]/10 text-[#248a3d]'
+                      : 'bg-[#ff9f0a]/10 text-[#b45309]'
+                  }`}
+                >
+                  {health?.status === 'ok' ? 'API Ok' : 'In attesa'}
+                </span>
+                <ChevronDown
+                  className={`w-4 h-4 text-[#6e6e73] transition-transform duration-200 ${
+                    showDevTools ? 'rotate-180' : ''
+                  }`}
+                />
+              </div>
+            </button>
+
+            {/* Contenuto comprimibile chiuso di default */}
+            {showDevTools && (
+              <div className="p-4 sm:p-5 border-t border-[#e5e5ea] space-y-5 bg-[#f5f5f7]/30">
+                {/* 1. Stato del Sistema & Diagnostica */}
+                <div className="bg-white rounded-[16px] p-3.5 border border-[#e5e5ea] space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-[#1d1d1f]">Stato dell'Infrastruttura</span>
+                    <button
+                      type="button"
+                      onClick={checkHealth}
+                      className="p-1 text-[#6e6e73] hover:text-[#1d1d1f] rounded hover:bg-[#f5f5f7] transition"
+                      title="Ricarica health"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isHealthLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+                    <div className="p-2 rounded-[10px] bg-[#f5f5f7]">
+                      <span className="text-[#6e6e73] block text-[10px]">API Health</span>
+                      <span className={health?.status === 'ok' ? 'text-[#248a3d] font-semibold' : 'text-[#6e6e73]'}>
+                        {health?.status || 'In verifica'}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-[10px] bg-[#f5f5f7]">
+                      <span className="text-[#6e6e73] block text-[10px]">OpenRouter Key</span>
+                      <span className={health?.openrouter.configured ? 'text-[#248a3d] font-semibold' : 'text-[#b45309]'}>
+                        {health?.openrouter.configured ? 'Configurata' : 'Assente (.env)'}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-[10px] bg-[#f5f5f7]">
+                      <span className="text-[#6e6e73] block text-[10px]">Modello</span>
+                      <span className="text-[#1d1d1f] truncate block" title={health?.openrouter.model}>
+                        {health?.openrouter.model ? health.openrouter.model.split('/').pop() : 'Llama-3.3'}
+                      </span>
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Campi mancanti (senza inventare nulla) */}
-                {profileResult.missingFields && profileResult.missingFields.length > 0 && (
-                  <div className="pt-2 text-xs text-slate-400 space-y-1.5">
-                    <span className="font-medium text-slate-300">
-                      Campi non disponibili pubblicamente ({profileResult.missingFields.length}):
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {profileResult.missingFields.map((field, fIdx) => (
-                        <span
-                          key={fIdx}
-                          className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-slate-400 font-mono text-[11px]"
-                        >
-                          {field}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      * Come da vincoli di progetto, nessun dato viene inventato o interpolato se la piattaforma ne limita la visibilità pubblica o richiede un login wall.
+                {/* Banner se manca la chiave OpenRouter */}
+                {!isHealthLoading && health && !health.openrouter.configured && (
+                  <div className="p-3.5 rounded-[14px] bg-[#ff9f0a]/10 border border-[#ff9f0a]/20 text-[#b45309] text-xs space-y-1">
+                    <p className="font-semibold">Chiave OPENROUTER_API_KEY non presente nel file .env</p>
+                    <p className="text-[11px] text-[#b45309]/90">
+                      La lettura automatica dei profili social funziona senza AI. Per abilitare anche il test del modello, imposta la chiave nel file <code>.env</code>.
                     </p>
                   </div>
                 )}
-              </div>
 
-              {/* Vista JSON grezzo per ispezione tecnica */}
-              {showRawJson && (
-                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
-                  <div className="flex items-center justify-between text-xs pb-2 border-b border-slate-800 text-slate-400">
-                    <span className="font-mono text-indigo-400">Formato ProfileData (server/types.ts)</span>
+                {/* 2. Collaudo Connessione OpenRouter (Test AI) */}
+                <div className="bg-white rounded-[16px] p-4 border border-[#e5e5ea] space-y-3">
+                  <div>
+                    <h4 className="text-xs font-semibold text-[#1d1d1f] uppercase tracking-wider">
+                      Test Modello AI (POST /api/test-ai)
+                    </h4>
+                    <p className="text-[11px] text-[#6e6e73] mt-0.5">
+                      Invia un prompt al backend Express per testare la risposta del modello.
+                    </p>
+                  </div>
+
+                  {/* Prompt veloci */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {samplePrompts.map((p, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setPrompt(p);
+                          handleTestAi(p);
+                        }}
+                        disabled={isAiLoading}
+                        className="text-[11px] px-2.5 py-1 rounded-[10px] bg-[#f5f5f7] hover:bg-[#e5e5ea] text-[#1d1d1f] transition text-left"
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Textarea */}
+                  <textarea
+                    rows={2}
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Inserisci un prompt di test..."
+                    className="w-full p-2.5 bg-[#f5f5f7] border border-[#e5e5ea] rounded-[12px] text-xs text-[#1d1d1f] placeholder-[#6e6e73]/60 focus:outline-none focus:border-[#0071e3] transition resize-none"
+                  />
+
+                  <div className="flex items-center justify-end">
                     <button
                       type="button"
-                      onClick={handleCopyJson}
-                      className="inline-flex items-center gap-1 text-slate-300 hover:text-white px-2 py-1 rounded bg-slate-800/80 hover:bg-slate-800 transition text-xs"
+                      onClick={() => handleTestAi()}
+                      disabled={isAiLoading || !prompt.trim()}
+                      className="px-4 py-1.5 rounded-[12px] bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs font-medium shadow-xs transition disabled:opacity-40 flex items-center gap-1.5"
                     >
-                      {jsonCopied ? (
+                      {isAiLoading ? (
                         <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copiato</span>
+                          <Loader2 className="w-3 h-3 animate-spin text-white" />
+                          <span>Esecuzione...</span>
                         </>
                       ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copia JSON</span>
-                        </>
+                        <span>Esegui Test AI</span>
                       )}
                     </button>
                   </div>
-                  <pre className="text-xs font-mono text-slate-300 p-2 overflow-x-auto max-h-96 leading-relaxed bg-black/40 rounded-xl">
-                    {JSON.stringify(profileResult, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
 
-        {/* SEZIONE 2: Test Integrazione OpenRouter Esistente (NON modificata) */}
-        <section className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 sm:p-8 backdrop-blur shadow-xl space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-            <div>
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                  <Zap className="w-4 h-4" />
-                </div>
-                <h2 className="text-xl font-bold text-white tracking-tight">
-                  Collaudo Connessione OpenRouter
-                </h2>
-              </div>
-              <p className="text-slate-400 text-xs sm:text-sm mt-1">
-                Invia una richiesta dal frontend al backend Express (<code className="text-indigo-400">POST /api/test-ai</code>) per testare OpenRouter.
-              </p>
-            </div>
+                  {/* Risultato Test AI */}
+                  {aiResult && (
+                    <div className="pt-2 border-t border-[#e5e5ea] space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span
+                          className={`font-medium ${
+                            aiResult.success ? 'text-[#248a3d]' : 'text-[#d70015]'
+                          }`}
+                        >
+                          {aiResult.success ? 'Risposta ricevuta' : 'Errore nella richiesta'}
+                        </span>
+                        {aiResult.durationMs !== undefined && (
+                          <span className="text-[11px] text-[#6e6e73] font-mono">
+                            {aiResult.durationMs} ms
+                          </span>
+                        )}
+                      </div>
 
-            {/* Dettagli Modello Configurato */}
-            <div className="flex items-center gap-2 bg-slate-950/80 px-3.5 py-2 rounded-xl border border-slate-800 self-start sm:self-auto text-xs text-slate-300">
-              <Cpu className="w-4 h-4 text-purple-400 shrink-0" />
-              <div>
-                <span className="text-slate-400 text-[11px] block">Modello attivo:</span>
-                <span className="font-mono text-purple-300 font-medium">
-                  {health?.openrouter.model || 'meta-llama/llama-3.3-70b-instruct'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Prompt suggeriti */}
-          <div className="space-y-2">
-            <span className="text-xs text-slate-400 font-medium">
-              Esempi di prompt rapidi:
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {samplePrompts.map((p, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setPrompt(p);
-                    handleTestAi(p);
-                  }}
-                  disabled={isAiLoading}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 hover:text-white text-slate-300 border border-slate-700/60 transition text-left"
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Area Input Prompt Personalizzabile */}
-          <div className="space-y-2">
-            <label
-              htmlFor="ai-prompt"
-              className="block text-xs font-semibold text-slate-300 uppercase tracking-wider"
-            >
-              Prompt inviato al modello
-            </label>
-            <textarea
-              id="ai-prompt"
-              rows={3}
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Inserisci un prompt di test da inviare a OpenRouter..."
-              className="w-full p-3.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm font-sans transition resize-none"
-            />
-          </div>
-
-          {/* Pulsante Esegui Test */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-            <div className="text-xs text-slate-400 flex items-center gap-2">
-              <Server className="w-4 h-4 text-slate-500" />
-              <span>Chiamata instradata via <strong>Express</strong> con timeout e retry automatico</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => handleTestAi()}
-              disabled={isAiLoading || !prompt.trim()}
-              className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold text-sm shadow-lg shadow-indigo-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {isAiLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Interrogazione OpenRouter in corso...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span>Esegui Test AI</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Risultato o Errore del Test AI */}
-          {aiResult && (
-            <div className="mt-6 pt-6 border-t border-slate-800 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {aiResult.success ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Risposta Ricevuta con Successo
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-medium">
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                      Errore nella Risposta
-                    </span>
-                  )}
-                </div>
-
-                {/* Metriche di esecuzione */}
-                <div className="flex items-center gap-3 text-xs text-slate-400">
-                  {aiResult.durationMs !== undefined && (
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-500" />
-                      {aiResult.durationMs} ms
-                    </span>
-                  )}
-                  {aiResult.usage?.total_tokens !== undefined && (
-                    <span className="hidden sm:inline-flex items-center gap-1">
-                      <Cpu className="w-3.5 h-3.5 text-slate-500" />
-                      {aiResult.usage.total_tokens} token totali
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {aiResult.success ? (
-                <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-5 space-y-3 relative group">
-                  <div className="flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-900">
-                    <span className="font-mono text-purple-400 text-[11px]">
-                      Modello: {aiResult.model}
-                    </span>
-                    <button
-                      onClick={handleCopyAiResponse}
-                      className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800/60 hover:bg-slate-800 transition"
-                      title="Copia negli appunti"
-                    >
-                      {copied ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copiato</span>
-                        </>
+                      {aiResult.success ? (
+                        <div className="p-3 bg-[#f5f5f7] rounded-[12px] text-xs text-[#1d1d1f] leading-relaxed relative group space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px] text-[#6e6e73]">
+                            <span className="font-mono">{aiResult.model}</span>
+                            <button
+                              type="button"
+                              onClick={handleCopyAiResponse}
+                              className="text-[#0071e3] hover:underline inline-flex items-center gap-1"
+                            >
+                              {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                              <span>{copied ? 'Copiato' : 'Copia'}</span>
+                            </button>
+                          </div>
+                          <div className="whitespace-pre-wrap">{aiResult.response}</div>
+                        </div>
                       ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copia testo</span>
-                        </>
+                        <div className="p-3 bg-[#ff3b30]/10 border border-[#ff3b30]/20 rounded-[12px] text-xs text-[#d70015] font-mono whitespace-pre-wrap">
+                          {aiResult.error}
+                        </div>
                       )}
-                    </button>
-                  </div>
-                  <div className="text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">
-                    {aiResult.response}
-                  </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="bg-rose-950/30 border border-rose-800/50 rounded-2xl p-5 space-y-2">
-                  <p className="text-sm font-semibold text-rose-300">
-                    Dettagli dell'errore:
-                  </p>
-                  <p className="text-xs font-mono text-rose-200/90 bg-black/40 p-3 rounded-xl whitespace-pre-wrap">
-                    {aiResult.error}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-2">
-                    Suggerimento: Controlla che la chiave in <code className="text-slate-300 font-mono">.env</code> sia valida e che il modello specificato sia disponibile sul tuo account OpenRouter.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* SEZIONE 3: Stato del Sistema & Diagnostica */}
-        <section className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
-              <Server className="w-4 h-4 text-indigo-400" />
-              <div>
-                <span className="text-xs font-semibold text-white block">
-                  Stato dell'Infrastruttura
-                </span>
-                <span className="text-[11px] text-slate-400">
-                  Backend Express montato con middleware Vite
-                </span>
               </div>
-            </div>
-
-            <div className="flex items-center gap-4 text-xs font-mono">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-500">API Health:</span>
-                <span
-                  className={
-                    health?.status === 'ok' ? 'text-emerald-400 font-semibold' : 'text-slate-400'
-                  }
-                >
-                  {health?.status || 'In attesa'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-500">OpenRouter Key:</span>
-                <span
-                  className={
-                    health?.openrouter.configured
-                      ? 'text-emerald-400 font-semibold'
-                      : 'text-amber-400'
-                  }
-                >
-                  {health?.openrouter.configured ? 'Configurata' : 'Assente'}
-                </span>
-              </div>
-              <button
-                onClick={checkHealth}
-                className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition"
-                title="Ricarica stato health"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${isHealthLoading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
+            )}
           </div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>Social Profile Analyzer — Lettura automatica profili (Instagram, TikTok, Facebook)</span>
-          <span className="text-slate-600">Frontend chiama esclusivamente /api/*</span>
+      {/* Footer a tutta larghezza con padding responsive */}
+      <footer className="w-full border-t border-[#e5e5ea] py-6 text-xs text-[#6e6e73] mt-auto">
+        <div className="w-full px-4 lg:px-8 2xl:px-12 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>Social Profile Analyzer</span>
+          <span className="text-[#86868b]">Design pulito stile Apple · Tema chiaro</span>
         </div>
       </footer>
     </div>
