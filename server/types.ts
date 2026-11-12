@@ -18,19 +18,31 @@ export type CompletenessLevel = 'full' | 'partial' | 'none';
 export type AdviceCategory = 'bio' | 'content' | 'community' | 'trust' | 'growth' | 'engagement';
 export type AdvicePriority = 'high' | 'medium' | 'low';
 
+export interface RecommendedService {
+  serviceId: string;
+  reason: string;
+}
+
 export interface AdviceItem {
   id: string;
-  category: AdviceCategory;
-  title: string;
-  description: string;
-  priority: AdvicePriority;
-  actionableStep: string;
+  finding: string;
+  impact: string;
+  quickWin: string;
+  proHelp: string;
+  serviceId?: string;
+  category?: AdviceCategory;
+  title?: string;
+  priority?: AdvicePriority;
 }
 
 export interface ProfileAdvice {
   overallScore?: number;
   summary: string;
   tips: AdviceItem[];
+  recommendedServices?: RecommendedService[];
+  suggestedBio?: string;
+  suggestedLinkInBio?: string;
+  inferredIndustry?: string;
   aiGenerated?: boolean;
 }
 

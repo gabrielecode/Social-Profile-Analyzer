@@ -297,6 +297,14 @@ export async function fetchTikTokProfile(
     );
   }
 
+  // Se externalLink non è stato fornito nel campo dedicato ma è presente nella bio
+  if (!externalLink && bio) {
+    const urlMatch = bio.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch) {
+      externalLink = urlMatch[0].replace(/[.,;!]+$/, '');
+    }
+  }
+
   // 5. Calcolo campi mancanti
   if (!displayName) missingFields.push('displayName');
   if (!bio) missingFields.push('bio');

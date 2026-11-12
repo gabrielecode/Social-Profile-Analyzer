@@ -16,6 +16,8 @@ import { fetchTikTokProfile } from './readers/tiktok.ts';
 import { fetchFacebookProfile } from './readers/facebook.ts';
 import { createRateLimiter } from './rateLimiter.ts';
 import { generateProfileAdvice } from './adviceGenerator.ts';
+import { generateFullAdvice } from './services/adviceService.ts';
+import { getContactConfig, SERVICES_CATALOG, BRAND_NAME } from './config/offer.ts';
 
 const router = Router();
 
@@ -51,6 +53,15 @@ router.get('/health', (_req: Request, res: Response) => {
       model,
     },
   });
+});
+
+/**
+ * GET /api/contact-config
+ * Restituisce i valori configurati per i contatti Aurora-ADV e il catalogo servizi.
+ */
+router.get('/contact-config', (_req: Request, res: Response) => {
+  const config = getContactConfig();
+  res.json(config);
 });
 
 /**
@@ -209,12 +220,12 @@ router.post('/analyze-profile', analyzeProfileLimiter, async (req: Request, res:
 
 /**
  * POST /api/generate-ai-advice
- * Genera consigli avanzati potenziati da IA tramite OpenRouter per il profilo analizzato.
+ * Genera consigli avanzati potenziati da IA tramite OpenRouter collegati ai servizi Aurora-ADV
+ * con fallback automatico su regole mirate.
  */
 router.post('/generate-ai-advice', testAiLimiter, async (req: Request, res: Response) => {
   const startTime = Date.now();
   try {
-    const configured = isOpenRouterConfigured();
     const profileData = req.body?.profileData;
 
     if (!profileData || !profileData.platform || !profileData.handle) {
@@ -225,84 +236,11 @@ router.post('/generate-ai-advice', testAiLimiter, async (req: Request, res: Resp
       return;
     }
 
-    // Se OpenRouter non è configurato, restituisci comunque i consigli mirati standard
-    if (!configured) {
-      const fallbackAdvice = generateProfileAdvice(profileData);
-      res.json({
-        success: true,
-        advice: fallbackAdvice,
-        aiGenerated: false,
-        message: 'OpenRouter non configurato: restituiti consigli mirati basati su regole.',
-        durationMs: Date.now() - startTime,
-      });
-      return;
-    }
-
-    const systemPrompt = `Sei un Social Media Strategist senior specializzato nell'ottimizzazione di profili aziendali e personal brand su Instagram, TikTok e Facebook.
-Basa l'analisi esclusivamente sui dati forniti. Non inventare e non citare metriche che non sono presenti (engagement rate, frequenza di pubblicazione, hashtag, visualizzazioni, ecc.). Se un consiglio è generico e non deriva dai dati, formulalo come buona pratica generale.
-Analizza i dati del profilo forniti dall'utente e rispondi ESCLUSIVAMENTE con un oggetto JSON valido con la seguente struttura:
-{
-  "overallScore": number (tra 1 e 100),
-  "summary": "stringa sintetica di 2 frasi con la diagnosi generale del profilo",
-  "tips": [
-    {
-      "id": "stringa-id-univoca",
-      "category": "bio" | "content" | "community" | "trust" | "growth",
-      "title": "Titolo del consiglio diretto e professionale",
-      "description": "Spiegazione del perché questo elemento va migliorato basandoti sui dati reali forniti",
-      "priority": "high" | "medium" | "low",
-      "actionableStep": "Azione pratica concreta da compiere subito"
-    }
-  ]
-}
-Fornisci da 4 a 6 consigli estremamente specifici e azionabili in lingua italiana. Rispondi solo in formato JSON.`;
-
-    const userPrompt = JSON.stringify({
-      platform: profileData.platform,
-      handle: profileData.handle,
-      displayName: profileData.displayName,
-      bio: profileData.bio,
-      externalLink: profileData.externalLink,
-      followers: profileData.followers,
-      following: profileData.following,
-      postsCount: profileData.postsCount,
-      totalLikes: profileData.totalLikes,
-      verified: profileData.verified,
-      completeness: profileData.completeness,
-      missingFields: profileData.missingFields,
-    }, null, 2);
-
-    const result = await chatCompletion(
-      [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      {
-        temperature: 0.6,
-        maxTokens: 1200,
-      }
-    );
-
-    let parsedAdvice;
-    try {
-      const cleanJson = result.content.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
-      parsedAdvice = JSON.parse(cleanJson);
-      if (Array.isArray(parsedAdvice?.tips)) {
-        parsedAdvice.tips = parsedAdvice.tips.map((tip: any) => ({
-          ...tip,
-          category: tip.category === 'engagement' ? 'community' : tip.category,
-        }));
-      }
-      parsedAdvice.aiGenerated = true;
-    } catch {
-      // Fallback se l'IA restituisce testo non JSON
-      parsedAdvice = generateProfileAdvice(profileData);
-      parsedAdvice.aiGenerated = false;
-    }
+    const advice = await generateFullAdvice(profileData);
 
     res.json({
       success: true,
-      advice: parsedAdvice,
+      advice,
       durationMs: Date.now() - startTime,
     });
   } catch (err: unknown) {

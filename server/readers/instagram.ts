@@ -186,6 +186,15 @@ export async function fetchInstagramProfile(
     avatarUrl = meta['og:image'];
   }
 
+  // Estrazione link esterno se presente nella bio
+  let externalLink: string | undefined;
+  if (bio) {
+    const urlMatch = bio.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch) {
+      externalLink = urlMatch[0].replace(/[.,;!]+$/, '');
+    }
+  }
+
   // 7. Calcolo campi mancanti
   if (!displayName) missingFields.push('displayName');
   if (!bio) missingFields.push('bio');
@@ -193,6 +202,7 @@ export async function fetchInstagramProfile(
   if (following === undefined) missingFields.push('following');
   if (postsCount === undefined) missingFields.push('postsCount');
   if (!avatarUrl) missingFields.push('avatarUrl');
+  if (!externalLink) missingFields.push('externalLink');
 
   // 8. Valutazione completezza
   let completeness: 'full' | 'partial' | 'none' = 'none';
@@ -217,6 +227,7 @@ export async function fetchInstagramProfile(
     url: profileUrl,
     displayName,
     bio,
+    externalLink,
     followers,
     following,
     postsCount,

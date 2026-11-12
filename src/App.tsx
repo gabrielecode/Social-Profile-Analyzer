@@ -30,6 +30,10 @@ import {
   Server,
   Zap,
   ArrowUpRight,
+  MessageSquare,
+  PhoneCall,
+  Mail,
+  ArrowRight,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
@@ -68,21 +72,124 @@ export interface RecentPost {
 export type AdviceCategory = 'bio' | 'content' | 'community' | 'trust' | 'growth' | 'engagement';
 export type AdvicePriority = 'high' | 'medium' | 'low';
 
+export interface RecommendedService {
+  serviceId: string;
+  reason: string;
+}
+
+export interface ServiceItem {
+  id: string;
+  nome: string;
+  perChi: string;
+  include: string;
+  prezzo: string;
+}
+
+export interface ContactConfig {
+  brand: string;
+  whatsapp?: string;
+  email?: string;
+  url?: string;
+  services?: ServiceItem[];
+}
+
 export interface AdviceItem {
   id: string;
-  category: AdviceCategory;
-  title: string;
-  description: string;
-  priority: AdvicePriority;
-  actionableStep: string;
+  finding: string;
+  impact: string;
+  quickWin: string;
+  proHelp: string;
+  serviceId?: string;
+  category?: AdviceCategory;
+  title?: string;
+  priority?: AdvicePriority;
+  description?: string;
+  actionableStep?: string;
 }
 
 export interface ProfileAdvice {
   overallScore?: number;
   summary: string;
   tips: AdviceItem[];
+  recommendedServices?: RecommendedService[];
+  suggestedBio?: string;
+  suggestedLinkInBio?: string;
+  inferredIndustry?: string;
   aiGenerated?: boolean;
 }
+
+export const DEFAULT_SERVICES: ServiceItem[] = [
+  {
+    id: 'check-up',
+    nome: 'Check-up',
+    perChi: 'Ingresso a bassa frizione',
+    include: 'Report scritto + consulenza 30 min',
+    prezzo: 'CHF 99',
+  },
+  {
+    id: 'social-start',
+    nome: 'Social Start',
+    perChi: 'Profili fermi o inesistenti',
+    include: 'Setup FB/IG + linea grafica e template + 8 post/mese',
+    prezzo: 'da CHF 350–490/mese',
+  },
+  {
+    id: 'social-crescita',
+    nome: 'Social Crescita',
+    perChi: 'Negozi/ristoranti/studi che vogliono contatti dai social',
+    include: 'Start + 12–16 post/mese con Stories e Reels + calendario editoriale + gestione commenti/messaggi 24h',
+    prezzo: 'da CHF 700–950/mese',
+  },
+  {
+    id: 'contenuti-su-misura',
+    nome: 'Contenuti Su Misura',
+    perChi: 'Chi vuole immagini autentiche',
+    include: 'Shooting foto/video in sede (mezza giornata) + Reels pronti per 1–2 mesi',
+    prezzo: 'da CHF 350–600 a sessione',
+  },
+  {
+    id: 'adv-setup',
+    nome: 'ADV Setup',
+    perChi: 'Chi vuole provare o gestirsi poi da solo',
+    include: 'Analisi obiettivo/target + tracciamento + 1 campagna Google o Meta',
+    prezzo: 'da CHF 390–590',
+  },
+  {
+    id: 'adv-locale',
+    nome: 'ADV Locale',
+    perChi: 'PMI locali con budget medio-basso',
+    include: 'Gestione mensile 1 piattaforma + targeting locale',
+    prezzo: 'da CHF 350–500/mese',
+  },
+  {
+    id: 'presenza-base',
+    nome: 'Presenza Base / Sito Monopagina',
+    perChi: 'Chi parte da zero',
+    include: 'Sito monopagina professionale per presentare l\'attività e convertire i contatti',
+    prezzo: 'CHF 599',
+  },
+  {
+    id: 'seo-locale-start',
+    nome: 'SEO Locale Start',
+    perChi: 'Chi ha un sito ma non compare nei risultati locali',
+    include: 'Ottimizzazione presenza locale su motori di ricerca e mappe',
+    prezzo: 'da CHF 300–500/mese',
+  },
+  {
+    id: 'visibilita-completa',
+    nome: 'Visibilità Completa',
+    perChi: 'Chi vuole delegare tutto',
+    include: 'Social Crescita + ADV Locale + SEO Locale Start, report unico',
+    prezzo: 'da CHF 1\'200–1\'600/mese',
+  },
+  {
+    id: 'agente-ai',
+    nome: 'Agente AI che risponde per te',
+    perChi: 'Attività con molte chiamate/appuntamenti',
+    include: 'Agente AI intelligente per gestione chiamate e appuntamenti 24/7',
+    prezzo: 'CHF 60/mese',
+  },
+];
 
 export interface ProfileData {
   platform: 'instagram' | 'tiktok' | 'facebook';
@@ -117,6 +224,12 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<'all' | AdviceCategory>('all');
   const [isGeneratingAiAdvice, setIsGeneratingAiAdvice] = useState(false);
   const [aiAdviceError, setAiAdviceError] = useState<string | null>(null);
+
+  // Configurazione contatti Aurora-ADV
+  const [contactConfig, setContactConfig] = useState<ContactConfig | null>(null);
+  const [copiedBio, setCopiedBio] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedMsg, setCopiedMsg] = useState(false);
 
   // Pannello tecnico / Strumenti sviluppatore (chiuso di default)
   const [showDevTools, setShowDevTools] = useState(false);
@@ -180,9 +293,106 @@ export default function App() {
     }
   };
 
+  // Caricamento configurazione contatti e catalogo Aurora-ADV
+  const fetchContactConfig = async () => {
+    try {
+      const res = await fetch('/api/contact-config');
+      if (res.ok) {
+        const data: ContactConfig = await res.json();
+        setContactConfig(data);
+      }
+    } catch (err: unknown) {
+      console.warn('Impossibile caricare /api/contact-config:', err);
+    }
+  };
+
   useEffect(() => {
     checkHealth();
+    fetchContactConfig();
   }, []);
+
+  const getService = (serviceId?: string): ServiceItem | undefined => {
+    if (!serviceId) return undefined;
+    return (
+      contactConfig?.services?.find((s) => s.id === serviceId) ||
+      DEFAULT_SERVICES.find((s) => s.id === serviceId)
+    );
+  };
+
+  const getCategoryLabel = (category?: AdviceCategory): string => {
+    switch (category) {
+      case 'bio':
+        return 'Bio & Posizionamento';
+      case 'content':
+        return 'Contenuti & Video';
+      case 'community':
+      case 'engagement':
+        return 'Community & Seguito';
+      case 'trust':
+        return 'Fiducia & Riprova';
+      case 'growth':
+        return 'Crescita & Conversioni';
+      default:
+        return 'Strategia';
+    }
+  };
+
+  const buildPrecompiledMessage = (actionType: 'quote' | 'tech'): { text: string; whatsappUrl: string; mailtoUrl: string } => {
+    if (!profileResult) return { text: '', whatsappUrl: '', mailtoUrl: '' };
+
+    const whatsappNum = (contactConfig?.whatsapp || '').replace(/[^0-9]/g, '');
+    const emailAddr = contactConfig?.email || 'developers@graficawebdesign.com';
+    const brand = contactConfig?.brand || 'Aurora-ADV';
+
+    // 3 punti principali rilevati
+    const top3Tips = (profileResult.advice?.tips || []).slice(0, 3);
+    const top3PointsText =
+      top3Tips.length > 0
+        ? top3Tips
+            .map((t, idx) => `${idx + 1}. ${t.finding || t.title || 'Punto critico rilevato'}`)
+            .join('\n')
+        : 'Analisi generale del profilo';
+
+    // Servizi consigliati
+    const recs = profileResult.advice?.recommendedServices || [];
+    const recServicesText =
+      recs.length > 0
+        ? recs
+            .map((rec) => {
+              const s = getService(rec.serviceId);
+              return s ? `• ${s.nome} (${s.prezzo})` : `• ${rec.serviceId}`;
+            })
+            .join('\n')
+        : '• Check-up strategico Aurora-ADV (CHF 99)';
+
+    let message = '';
+    if (actionType === 'quote') {
+      message =
+        `Ciao ${brand}!\n` +
+        `Vorrei richiedere un preventivo gratuito per il mio profilo ${profileResult.platform.toUpperCase()}: @${profileResult.handle}\n\n` +
+        `3 punti principali rilevati dall'analisi:\n${top3PointsText}\n\n` +
+        `Servizi consigliati:\n${recServicesText}\n\n` +
+        `Potete indicarmi tempistiche e modalità per procedere? Grazie!`;
+    } else {
+      message =
+        `Ciao ${brand}!\n` +
+        `Vorrei parlare con un tecnico per una consulenza sul mio profilo ${profileResult.platform.toUpperCase()}: @${profileResult.handle}\n\n` +
+        `3 aspetti chiave rilevati:\n${top3PointsText}\n\n` +
+        `Servizi su cui vorrei un confronto:\n${recServicesText}\n\n` +
+        `Quando è possibile fare una breve chiamata o approfondire su chat? Grazie!`;
+    }
+
+    const encoded = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${whatsappNum}?text=${encoded}`;
+    const subject = encodeURIComponent(
+      actionType === 'quote'
+        ? `Richiesta Preventivo Gratuito Aurora-ADV - @${profileResult.handle} (${profileResult.platform})`
+        : `Richiesta Consulenza Tecnica Aurora-ADV - @${profileResult.handle} (${profileResult.platform})`
+    );
+    const mailtoUrl = `mailto:${emailAddr}?subject=${subject}&body=${encoded}`;
+
+    return { text: message, whatsappUrl, mailtoUrl };
+  };
 
   // Esecuzione chiamata POST /api/analyze-profile
   const handleAnalyzeProfile = async (targetUrl?: string) => {
@@ -417,38 +627,93 @@ export default function App() {
       }
 
       profileResult.advice.tips.forEach((tip, idx) => {
-        if (y > 250) {
+        if (y > 230) {
           doc.addPage();
           y = 20;
         }
 
         const priorityLabel =
           tip.priority === 'high'
-            ? '[PRIORITÀ ALTA]'
+            ? '[ALTA PRIORITÀ]'
             : tip.priority === 'medium'
-            ? '[PRIORITÀ MEDIA]'
-            : '[BUONA PRATICA]';
+            ? '[MEDIA PRIORITÀ]'
+            : '[PRIORITÀ CONSIGLIATA]';
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(29, 29, 31);
-        doc.text(`${idx + 1}. ${tip.title} ${priorityLabel}`, 16, y);
+        doc.text(`${idx + 1}. ${tip.title || 'Punto critico ' + (idx + 1)} ${priorityLabel}`, 16, y);
         y += 4.5;
+
+        // Finding
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 113, 227);
+        const findingTxt = `Dato reale rilevato: ${tip.finding || tip.description || 'Parametro analizzato'}`;
+        const splitFinding = doc.splitTextToSize(findingTxt, pageWidth - 32);
+        doc.text(splitFinding, 20, y);
+        y += splitFinding.length * 3.8 + 1.5;
+
+        // Impact
+        if (tip.impact) {
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(110, 110, 115);
+          const impactTxt = `Perché conta: ${tip.impact}`;
+          const splitImpact = doc.splitTextToSize(impactTxt, pageWidth - 32);
+          doc.text(splitImpact, 20, y);
+          y += splitImpact.length * 3.8 + 1.5;
+        }
+
+        // Quick win
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(36, 138, 61);
+        const quickTxt = `Cosa fare subito da solo: ${tip.quickWin || tip.actionableStep}`;
+        const splitQuick = doc.splitTextToSize(quickTxt, pageWidth - 32);
+        doc.text(splitQuick, 20, y);
+        y += splitQuick.length * 3.8 + 1.5;
+
+        // Pro Help
+        if (tip.proHelp) {
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'italic');
+          doc.setTextColor(60, 60, 67);
+          const proTxt = `Supporto Aurora-ADV: ${tip.proHelp}`;
+          const splitPro = doc.splitTextToSize(proTxt, pageWidth - 32);
+          doc.text(splitPro, 20, y);
+          y += splitPro.length * 3.8 + 3.5;
+        }
+      });
+
+      // Box Servizi Consigliati Aurora-ADV
+      if (profileResult.advice.recommendedServices && profileResult.advice.recommendedServices.length > 0) {
+        if (y > 220) {
+          doc.addPage();
+          y = 20;
+        }
+        y += 2;
+        doc.setFillColor(245, 245, 247);
+        doc.roundedRect(16, y, pageWidth - 32, 28, 3, 3, 'F');
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 113, 227);
+        doc.text('SERVIZI AURORA-ADV RACCOMANDATI PER QUESTO PROFILO', 20, y + 7);
 
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(110, 110, 115);
-        const splitDesc = doc.splitTextToSize(tip.description, pageWidth - 32);
-        doc.text(splitDesc, 20, y);
-        y += splitDesc.length * 3.8 + 2;
-
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 113, 227);
-        const actionTxt = `Passo concreto: ${tip.actionableStep}`;
-        const splitAction = doc.splitTextToSize(actionTxt, pageWidth - 32);
-        doc.text(splitAction, 20, y);
-        y += splitAction.length * 3.8 + 5;
-      });
+        doc.setTextColor(29, 29, 31);
+        let sY = y + 13;
+        profileResult.advice.recommendedServices.forEach((rec) => {
+          const s = getService(rec.serviceId);
+          const line = `• ${s?.nome || rec.serviceId} (${s?.prezzo || 'Prezzo trasparente'}) - ${rec.reason}`;
+          const splitLine = doc.splitTextToSize(line, pageWidth - 40);
+          doc.text(splitLine, 20, sY);
+          sY += splitLine.length * 3.8;
+        });
+        y += 32;
+      }
     }
 
     const pageCount = doc.internal.pages.length - 1;
@@ -1338,8 +1603,86 @@ export default function App() {
                         ))}
                     </div>
 
-                    {/* GRIGLIA CONSIGLI: 2 colonne da xl, 3 da 2xl. Card ad altezza uniforme senza spazi vuoti */}
-                    <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 items-stretch">
+                    {/* Blocco Proposte di Ottimizzazione Pronte all'Uso (se bio riscritta o link suggeriti sono presenti) */}
+                    {(profileResult.advice.suggestedBio || profileResult.advice.suggestedLinkInBio || profileResult.advice.inferredIndustry) && (
+                      <div className="bg-white rounded-[22px] border border-[#e5e5ea] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#e5e5ea] pb-3">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4 text-[#0071e3]" />
+                            <h4 className="text-sm sm:text-[15px] font-semibold text-[#1d1d1f]">
+                              Bozze Pratiche Pronte all'Uso
+                            </h4>
+                          </div>
+                          {profileResult.advice.inferredIndustry && (
+                            <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-[#f5f5f7] text-[#1d1d1f] border border-[#e5e5ea]">
+                              Settore rilevato: <strong className="text-[#0071e3]">{profileResult.advice.inferredIndustry}</strong>
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Bio Riscritta */}
+                          {profileResult.advice.suggestedBio && (
+                            <div className="bg-[#f5f5f7] rounded-[16px] p-3.5 text-xs space-y-2 flex flex-col justify-between">
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-[#1d1d1f] text-[11px] uppercase tracking-wider">
+                                    Bio consigliata ({profileResult.platform})
+                                  </span>
+                                  <span className="text-[10px] text-[#6e6e73] font-mono">
+                                    {profileResult.advice.suggestedBio.length} car.
+                                  </span>
+                                </div>
+                                <p className="text-[#1d1d1f] leading-relaxed whitespace-pre-wrap font-sans text-xs bg-white rounded-[10px] p-2.5 border border-[#e5e5ea]">
+                                  {profileResult.advice.suggestedBio}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(profileResult.advice?.suggestedBio || '');
+                                  setCopiedBio(true);
+                                  setTimeout(() => setCopiedBio(false), 2000);
+                                }}
+                                className="self-end inline-flex items-center gap-1 px-3 py-1.5 rounded-[10px] bg-white border border-[#e5e5ea] text-xs font-medium text-[#0071e3] hover:bg-[#f5f5f7] transition"
+                              >
+                                {copiedBio ? <Check className="w-3.5 h-3.5 text-[#34c759]" /> : <Copy className="w-3.5 h-3.5" />}
+                                <span>{copiedBio ? 'Copiata!' : 'Copia Bio'}</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Struttura Link in Bio */}
+                          {profileResult.advice.suggestedLinkInBio && (
+                            <div className="bg-[#f5f5f7] rounded-[16px] p-3.5 text-xs space-y-2 flex flex-col justify-between">
+                              <div className="space-y-1">
+                                <span className="font-semibold text-[#1d1d1f] text-[11px] uppercase tracking-wider block">
+                                  Struttura Link in Bio Consigliata
+                                </span>
+                                <p className="text-[#1d1d1f] leading-relaxed text-xs bg-white rounded-[10px] p-2.5 border border-[#e5e5ea]">
+                                  {profileResult.advice.suggestedLinkInBio}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(profileResult.advice?.suggestedLinkInBio || '');
+                                  setCopiedLink(true);
+                                  setTimeout(() => setCopiedLink(false), 2000);
+                                }}
+                                className="self-end inline-flex items-center gap-1 px-3 py-1.5 rounded-[10px] bg-white border border-[#e5e5ea] text-xs font-medium text-[#0071e3] hover:bg-[#f5f5f7] transition"
+                              >
+                                {copiedLink ? <Check className="w-3.5 h-3.5 text-[#34c759]" /> : <Copy className="w-3.5 h-3.5" />}
+                                <span>{copiedLink ? 'Copiato!' : 'Copia Struttura'}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* GRIGLIA CONSIGLI: 2 colonne da xl, 3 da 2xl. Card con finding, impact, quickWin e Come possiamo aiutarti */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4.5 items-stretch">
                       {profileResult.advice.tips
                         .filter((tip) => {
                           if (selectedCategory === 'all') return true;
@@ -1348,107 +1691,258 @@ export default function App() {
                           }
                           return tip.category === selectedCategory;
                         })
-                        .map((tip) => (
-                          <div
-                            key={tip.id}
-                            className="bg-white rounded-[22px] border border-[#e5e5ea] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] hover:border-[#d1d1d6] transition-all flex flex-col justify-between gap-3 h-full"
-                          >
-                            <div className="space-y-2 flex-1 flex flex-col">
-                              {/* Categoria e Pill Priorità */}
-                              <div className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className="text-[10px] uppercase font-semibold text-[#6e6e73] tracking-wider">
-                                  {tip.category === 'bio'
-                                    ? 'Bio & CTA'
-                                    : tip.category === 'content'
-                                    ? 'Contenuti'
-                                    : tip.category === 'community' || (tip.category as string) === 'engagement'
-                                    ? 'Community'
-                                    : tip.category === 'trust'
-                                    ? 'Fiducia'
-                                    : 'Crescita'}
-                                </span>
+                        .map((tip) => {
+                          const linkedService = getService(tip.serviceId);
+                          return (
+                            <div
+                              key={tip.id}
+                              className="bg-white rounded-[22px] border border-[#e5e5ea] p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] hover:border-[#d1d1d6] transition-all flex flex-col justify-between gap-4 h-full"
+                            >
+                              <div className="space-y-3.5 flex-1 flex flex-col">
+                                {/* Header Card: Categoria e Priorità (Nessun 'Buona Pratica' generico) */}
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="text-[10px] uppercase font-semibold text-[#6e6e73] tracking-wider px-2 py-0.5 rounded-md bg-[#f5f5f7]">
+                                    {getCategoryLabel(tip.category)}
+                                  </span>
 
-                                {tip.priority === 'high' ? (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#ff3b30]/10 text-[#d70015]">
-                                    Alta Priorità
-                                  </span>
-                                ) : tip.priority === 'medium' ? (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#ff9f0a]/12 text-[#b45309]">
-                                    Media Priorità
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#34c759]/12 text-[#248a3d]">
-                                    Buona Pratica
-                                  </span>
+                                  {tip.priority === 'high' ? (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#ff3b30]/10 text-[#d70015]">
+                                      Alta Priorità
+                                    </span>
+                                  ) : tip.priority === 'medium' ? (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#ff9f0a]/12 text-[#b45309]">
+                                      Media Priorità
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#0071e3]/10 text-[#0071e3]">
+                                      Priorità Consigliata
+                                    </span>
+                                  )}
+                                </div>
+
+                                {tip.title && (
+                                  <h4 className="text-[15px] font-semibold text-[#1d1d1f] tracking-tight leading-snug">
+                                    {tip.title}
+                                  </h4>
                                 )}
+
+                                {/* 1. FINDING: Cosa è stato rilevato citando il dato reale */}
+                                <div className="bg-[#f5f5f7] rounded-[14px] p-3 border border-[#e5e5ea]/70 space-y-1">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#0071e3] uppercase tracking-wider">
+                                    <Search className="w-3 h-3 text-[#0071e3]" />
+                                    <span>Dato rilevato nel profilo:</span>
+                                  </div>
+                                  <p className="text-xs text-[#1d1d1f] leading-relaxed font-medium">
+                                    {tip.finding || tip.description}
+                                  </p>
+                                </div>
+
+                                {/* 2. IMPACT: Perché conta, una frase */}
+                                <div className="space-y-1">
+                                  <span className="text-[10px] font-semibold text-[#6e6e73] uppercase tracking-wider block">
+                                    Perché conta:
+                                  </span>
+                                  <p className="text-xs text-[#6e6e73] leading-relaxed">
+                                    {tip.impact || tip.description}
+                                  </p>
+                                </div>
+
+                                {/* 3. QUICK WIN: Cosa fare subito da solo, concreto */}
+                                <div className="bg-[#34c759]/8 rounded-[14px] p-3 border border-[#34c759]/20 space-y-1">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#248a3d] uppercase tracking-wider">
+                                    <CheckCircle2 className="w-3 h-3 text-[#34c759]" />
+                                    <span>Cosa puoi fare subito (da solo):</span>
+                                  </div>
+                                  <p className="text-xs text-[#1d1d1f] leading-relaxed">
+                                    {tip.quickWin || tip.actionableStep}
+                                  </p>
+                                </div>
                               </div>
 
-                              <h4 className="text-[15px] font-semibold text-[#1d1d1f] tracking-tight leading-snug">
-                                {tip.title}
-                              </h4>
+                              {/* 4. COME POSSIAMO AIUTARTI: Riquadro con proHelp */}
+                              <div className="bg-gradient-to-br from-[#1d1d1f] to-[#2c2c2e] text-white rounded-[16px] p-3.5 space-y-2 mt-auto shadow-xs">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[11px] font-semibold tracking-wider uppercase text-white/90 flex items-center gap-1.5">
+                                    <Sparkles className="w-3.5 h-3.5 text-[#ff9f0a]" />
+                                    <span>Come possiamo aiutarti</span>
+                                  </span>
 
-                              <p className="text-xs text-[#6e6e73] leading-relaxed flex-1">
-                                {tip.description}
-                              </p>
-                            </div>
+                                  {linkedService && (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white tabular-nums">
+                                      {linkedService.prezzo}
+                                    </span>
+                                  )}
+                                </div>
 
-                            {/* Passo concreto fissato in basso a fondo card */}
-                            <div className="bg-[#f5f5f7] rounded-[14px] p-3 text-xs text-[#1d1d1f] border border-[#e5e5ea]/50 space-y-0.5 mt-auto">
-                              <span className="font-semibold text-[#1d1d1f] block text-[11px] uppercase tracking-wider text-[#6e6e73]">
-                                Passo concreto:
-                              </span>
-                              <p className="text-xs leading-relaxed text-[#1d1d1f] font-normal">
-                                {tip.actionableStep}
-                              </p>
+                                <p className="text-xs text-white/80 leading-relaxed font-normal">
+                                  {tip.proHelp}
+                                </p>
+
+                                {linkedService && (
+                                  <div className="pt-1.5 border-t border-white/10 flex items-center justify-between text-[11px]">
+                                    <span className="text-white/60">Servizio correlato:</span>
+                                    <span className="font-semibold text-white truncate">
+                                      {linkedService.nome}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                     </div>
 
-                    {/* BLOCCO CTA STRATEGICO */}
-                    <div className="bg-gradient-to-br from-[#1d1d1f] via-[#2c2c2e] to-[#1d1d1f] text-white rounded-[24px] p-6 sm:p-7 shadow-[0_4px_24px_rgba(0,0,0,0.08)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 mt-6">
-                      <div className="space-y-1.5 max-w-xl">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/10 text-white/90">
-                          <Sparkles className="w-3 h-3 text-[#34c759]" />
-                          <span>Report Strategico</span>
+                    {/* ============================================================== */}
+                    {/* BLOCCO OP.4: "VUOI RISOLVERE QUESTI PUNTI?" (SERVIZI AURORA-ADV) */}
+                    {/* ============================================================== */}
+                    <div className="bg-white rounded-[26px] border border-[#e5e5ea] p-6 sm:p-8 shadow-[0_4px_24px_rgba(0,0,0,0.04)] space-y-6 mt-8">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#e5e5ea] pb-5">
+                        <div className="space-y-1">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#0071e3]/10 text-[#0071e3]">
+                            <Sparkles className="w-3 h-3 text-[#0071e3]" />
+                            <span>Soluzioni Trasparenti Aurora-ADV</span>
+                          </div>
+                          <h3 className="text-xl sm:text-2xl font-bold text-[#1d1d1f] tracking-tight">
+                            Vuoi risolvere questi punti?
+                          </h3>
+                          <p className="text-xs sm:text-[13px] text-[#6e6e73] leading-relaxed max-w-2xl">
+                            Ecco i servizi <strong>{contactConfig?.brand || 'Aurora-ADV'}</strong> calibrati specificamente sulle criticità reali rilevate sul profilo @{profileResult.handle}.
+                          </p>
                         </div>
-                        <h4 className="text-lg sm:text-xl font-semibold tracking-tight text-white">
-                          Pronto a potenziare il profilo @{profileResult.handle}?
-                        </h4>
-                        <p className="text-xs sm:text-[13px] text-white/70 leading-relaxed">
-                          Esporta il report completo in PDF con le metriche rilevate, il punteggio di salute e tutti i passi concreti per il tuo team o i tuoi clienti.
-                        </p>
-                      </div>
 
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full sm:w-auto">
-                        <button
-                          type="button"
-                          onClick={handleExportPdf}
-                          className="px-5 py-3 rounded-[16px] bg-[#0071e3] hover:bg-[#0077ed] text-white text-xs sm:text-sm font-semibold shadow-sm transition active:scale-[0.98] flex items-center justify-center gap-2"
-                        >
-                          <Download className="w-4 h-4" />
-                          <span>Esporta Report PDF</span>
-                        </button>
-                        {!profileResult.advice.aiGenerated && (
+                        <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
-                            onClick={handleGenerateAiAdvice}
-                            disabled={isGeneratingAiAdvice}
-                            className="px-4 py-3 rounded-[16px] bg-white/10 hover:bg-white/15 text-white text-xs sm:text-sm font-medium border border-white/10 transition active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+                            onClick={handleExportPdf}
+                            className="px-4 py-2.5 rounded-[14px] bg-[#f5f5f7] hover:bg-[#e5e5ea] text-[#1d1d1f] text-xs font-medium border border-[#e5e5ea] transition flex items-center gap-1.5"
+                            title="Scarica il report PDF"
                           >
-                            {isGeneratingAiAdvice ? (
-                              <>
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                                <span>Elaborazione...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Sparkles className="w-3.5 h-3.5 text-[#34c759]" />
-                                <span>Approfondisci con IA</span>
-                              </>
-                            )}
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Esporta Report PDF</span>
                           </button>
-                        )}
+                        </div>
+                      </div>
+
+                      {/* Servizi Consigliati (con nome, prezzo, per chi, cosa include e reason legata al profilo) */}
+                      {profileResult.advice.recommendedServices && profileResult.advice.recommendedServices.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {profileResult.advice.recommendedServices.map((rec, rIdx) => {
+                            const s = getService(rec.serviceId);
+                            return (
+                              <div
+                                key={rIdx}
+                                className="bg-[#f5f5f7] rounded-[20px] p-5 border border-[#e5e5ea] flex flex-col justify-between gap-4 hover:border-[#0071e3]/40 transition shadow-xs"
+                              >
+                                <div className="space-y-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[#0071e3] block">
+                                        Servizio Consigliato #{rIdx + 1}
+                                      </span>
+                                      <h4 className="text-base sm:text-lg font-bold text-[#1d1d1f] tracking-tight">
+                                        {s?.nome || rec.serviceId}
+                                      </h4>
+                                    </div>
+                                    {s?.prezzo && (
+                                      <span className="px-3 py-1 rounded-full bg-white text-[#1d1d1f] font-bold text-xs shadow-xs border border-[#e5e5ea] tabular-nums shrink-0">
+                                        {s.prezzo}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {s?.perChi && (
+                                    <p className="text-xs text-[#6e6e73] leading-relaxed">
+                                      <span className="font-semibold text-[#1d1d1f]">Per chi è: </span>
+                                      {s.perChi}
+                                    </p>
+                                  )}
+
+                                  {s?.include && (
+                                    <p className="text-xs text-[#6e6e73] leading-relaxed">
+                                      <span className="font-semibold text-[#1d1d1f]">Cosa include: </span>
+                                      {s.include}
+                                    </p>
+                                  )}
+
+                                  {/* Motivazione personalizzata legata a dato reale del profilo */}
+                                  <div className="bg-white rounded-[12px] p-3 text-xs border border-[#e5e5ea]/80 space-y-1 mt-2">
+                                    <span className="font-semibold text-[#0071e3] text-[10px] uppercase tracking-wider block">
+                                      Perché per il tuo profilo:
+                                    </span>
+                                    <p className="text-xs text-[#1d1d1f] leading-relaxed">
+                                      {rec.reason}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* I due pulsanti principali: "Richiedi un preventivo gratuito" e "Parla con un tecnico" */}
+                      <div className="pt-3 border-t border-[#e5e5ea] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                        <div className="text-xs text-[#6e6e73] space-y-0.5">
+                          <p className="font-medium text-[#1d1d1f]">
+                            Messaggio precompilato con piattaforma, handle e punti rilevati
+                          </p>
+                          <p className="text-[11px] text-[#6e6e73]">
+                            WhatsApp: +{contactConfig?.whatsapp || '41 76 441 13 59'} · Email: {contactConfig?.email || 'developers@graficawebdesign.com'}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+                          {/* Pulsante 1: Richiedi un preventivo gratuito */}
+                          <a
+                            href={buildPrecompiledMessage('quote').whatsappUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-6 py-3.5 rounded-[18px] bg-[#25D366] hover:bg-[#20ba59] text-white font-semibold text-xs sm:text-sm shadow-sm transition active:scale-[0.98] flex items-center justify-center gap-2 select-none"
+                            title="Apri WhatsApp con il messaggio precompilato per richiedere un preventivo gratuito"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            <span>Richiedi un preventivo gratuito</span>
+                          </a>
+
+                          {/* Pulsante 2: Parla con un tecnico */}
+                          <a
+                            href={buildPrecompiledMessage('tech').whatsappUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-6 py-3.5 rounded-[18px] bg-[#1d1d1f] hover:bg-[#2c2c2e] text-white font-semibold text-xs sm:text-sm shadow-sm transition active:scale-[0.98] flex items-center justify-center gap-2 select-none"
+                            title="Parla su WhatsApp con un tecnico specializzato Aurora-ADV"
+                          >
+                            <PhoneCall className="w-4 h-4" />
+                            <span>Parla con un tecnico</span>
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Opzione Mailto con lo stesso identico testo */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#e5e5ea]/60 text-xs text-[#6e6e73]">
+                        <span>Preferisci inviare la richiesta tramite posta elettronica?</span>
+                        <div className="flex items-center gap-3">
+                          <a
+                            href={buildPrecompiledMessage('quote').mailtoUrl}
+                            className="text-[#0071e3] hover:underline font-medium inline-flex items-center gap-1.5"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>Invia via Email con lo stesso testo</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(buildPrecompiledMessage('quote').text);
+                              setCopiedMsg(true);
+                              setTimeout(() => setCopiedMsg(false), 2000);
+                            }}
+                            className="text-[#6e6e73] hover:text-[#1d1d1f] inline-flex items-center gap-1 font-medium"
+                            title="Copia il testo precompilato negli appunti"
+                          >
+                            {copiedMsg ? <Check className="w-3 h-3 text-[#34c759]" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedMsg ? 'Copiato!' : 'Copia testo'}</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

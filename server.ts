@@ -8,6 +8,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import apiRouter from './server/routes.ts';
+import apiV1Router from './server/v1/routes.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +20,9 @@ async function startServer() {
 
   app.set('trust proxy', 1);
   app.use(express.json());
+
+  // Registra le rotte dell'API v1 protetta per integrazione esterna
+  app.use('/api/v1', apiV1Router);
 
   // Registra le rotte backend su /api/*
   app.use('/api', apiRouter);
